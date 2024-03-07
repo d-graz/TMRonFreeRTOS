@@ -53,3 +53,9 @@ dkms.conf
 
 # MacOS
 **/.DS_Store
+
+# Debug compilation of Cube IDE
+**/Debug
+
+# Settings of Cube IDE
+**/.settings
