@@ -96,6 +96,11 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+    // Toggle led state on
+    HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
+
+    // Delay for 2 seconds
+    HAL_Delay(2000);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
