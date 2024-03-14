@@ -1,0 +1,5 @@
+- provare a portare la nuova versione di freertos
+- verificare l'implementazione della scrittura su porta
+- condurre test generali pre modifica del kernel
+- leggere doc sullo scheduler
+- modificare lo scheduler
