@@ -313,7 +313,7 @@ void StartTHE_TASK(void *argument)
   for(;;)
   {
 	  HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
-	  osDelay(5000);
+	  osDelay(10000);
   }
   /* USER CODE END StartTHE_TASK */
 }
