@@ -22,6 +22,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include <stdio.h>
 
 /* USER CODE END Includes */
 
@@ -145,6 +146,7 @@ int main(void)
   /* add events, ... */
   /* USER CODE END RTOS_EVENTS */
 
+  printf("Starting RTOS scheduler");
   /* Start scheduler */
   osKernelStart();
 
@@ -309,9 +311,19 @@ void StartDefaultTask(void *argument)
 void StartTHE_TASK(void *argument)
 {
   /* USER CODE BEGIN StartTHE_TASK */
+	short unsigned int status = 0;
   /* Infinite loop */
   for(;;)
   {
+	  if (status == 0){
+		  status = 1;
+		  printf("Toggling led on");
+	  } else if (status == 1 ){
+		  status = 0;
+		  printf("Toggling led off");
+	  } else {
+		  printf("ERROR: status has not expected value");
+	  }
 	  HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
 	  osDelay(10000);
   }
