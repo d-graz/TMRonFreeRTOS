@@ -54,8 +54,8 @@ dkms.conf
 # MacOS
 **/.DS_Store
 
-# Debug compilation of Cube IDE
+# Cube IDE
 **/Debug
-
-# Settings of Cube IDE
 **/.settings
+TMRonFreeRTOS Debug.launch
+TMRonFreeRTOS Debug.cfg
