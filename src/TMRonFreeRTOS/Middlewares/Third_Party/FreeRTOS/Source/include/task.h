@@ -35,6 +35,7 @@
 #endif
 
 #include "list.h"
+#include <stdio.h>
 
 /* *INDENT-OFF* */
 #ifdef __cplusplus
@@ -358,6 +359,13 @@ typedef enum
                             void * const pvParameters,
                             UBaseType_t uxPriority,
                             TaskHandle_t * const pxCreatedTask ) PRIVILEGED_FUNCTION;
+    
+    BaseType_t GtaskCreate( TaskFunction_t pxTaskCode,
+                        const char * const pcName, /*lint !e971 Unqualified char types are allowed for strings and single characters only. */
+                        const configSTACK_DEPTH_TYPE usStackDepth,
+                        void * const pvParameters,
+                        UBaseType_t uxPriority,
+                        TaskHandle_t * const pxCreatedTask ) PRIVILEGED_FUNCTION;
 #endif
 
 /**

@@ -318,6 +318,8 @@ typedef struct tskTaskControlBlock       /* The old naming convention is used to
     #if ( configUSE_POSIX_ERRNO == 1 )
         int iTaskErrno;
     #endif
+    struct tskTaskControlBlock * pxTaskValidation; /*< Used for validation of the TCB. */
+    struct tskTaskControlBlock * pxTaskSUS;        /*< Used for error correction of the TCB in case of divergent results in the validation task. */
 } tskTCB;
 
 /* The old tskTCB name is maintained above then typedefed to the new TCB_t name
@@ -719,6 +721,46 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB ) PRIVILEGED_FUNCTION;
 #if ( configSUPPORT_DYNAMIC_ALLOCATION == 1 )
 
     BaseType_t xTaskCreate( TaskFunction_t pxTaskCode,
+                            const char * const pcName, /*lint !e971 Unqualified char types are allowed for strings and single characters only. */
+                            const configSTACK_DEPTH_TYPE usStackDepth,
+                            void * const pvParameters,
+                            UBaseType_t uxPriority,
+                            TaskHandle_t * const pxCreatedTask )
+    {
+        BaseType_t xReturn;
+        xReturn = GtaskCreate( pxTaskCode, pcName, usStackDepth, pvParameters, uxPriority, pxCreatedTask );
+        if (xReturn != pdPASS){
+            xReturn = pdFAIL;
+            return xReturn;
+        }
+        //FIXME: [LOW] possible buffer overflow if pcName is too long
+        char pcName_vd[configMAX_TASK_NAME_LEN];
+        sprintf(pcName_vd, "%s_vd", pcName);
+
+        // create a new handle for the validation task
+        TaskHandle_t * pxCreatedTask_vd = NULL;
+        xReturn = GtaskCreate( pxTaskCode, pcName_vd, usStackDepth, pvParameters, uxPriority, pxCreatedTask_vd );
+        if (xReturn != pdPASS){
+            xReturn = pdFAIL;
+            // TODO: [CRITICAL] delete the first task
+            return xReturn;
+        }
+
+        // linking the validation task to the original task
+        TCB_t * tcb_pxCreatedTask = (TCB_t *) pxCreatedTask;
+        TCB_t * tcb_pxCreatedTask_vd = (TCB_t *) pxCreatedTask_vd;
+
+        tcb_pxCreatedTask->pxTaskValidation = tcb_pxCreatedTask_vd;
+        tcb_pxCreatedTask->pxTaskSUS = NULL;
+
+        tcb_pxCreatedTask_vd->pxTaskValidation = tcb_pxCreatedTask;
+        tcb_pxCreatedTask_vd->pxTaskSUS = NULL;
+
+        return xReturn;
+        
+    }
+
+    BaseType_t GtaskCreate( TaskFunction_t pxTaskCode,
                             const char * const pcName, /*lint !e971 Unqualified char types are allowed for strings and single characters only. */
                             const configSTACK_DEPTH_TYPE usStackDepth,
                             void * const pvParameters,

@@ -23,7 +23,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include <stdio.h>
-
+#include "task.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -125,6 +125,10 @@ int main(void)
   /* Create the thread(s) */
   /* creation of TheTask */
   TheTaskHandle = osThreadNew(TheTaskBody, NULL, &TheTask_attributes);
+
+  char buffer_bello[500];
+  vTaskList(buffer_bello);
+  printf("%s\n", buffer_bello);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -319,6 +323,7 @@ void TheTaskBody(void *argument)
 {
   /* USER CODE BEGIN TheTaskBody */
 	short unsigned int flip = 0;
+	TaskStatus_t * status = NULL;
   /* Infinite loop */
   for(;;)
   {
@@ -330,7 +335,10 @@ void TheTaskBody(void *argument)
     	printf("Switching led off\n");
     }
     HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
-    osDelay(2000);
+    vTaskGetInfo(NULL, status, pdFALSE, eInvalid);
+    printf("Task name: %s\n", status->pcTaskName);
+    
+    osDelay(5000);
   }
   /* USER CODE END TheTaskBody */
 }

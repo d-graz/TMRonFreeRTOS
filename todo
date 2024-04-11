@@ -1,1 +1,3 @@
 - provare a modificare la creazione di più thread
+- chiedere se bisogna implemntare la TMR anche sun threads xTaskCreateStatic (secondo noi no perchè si viene a perdere la staticità di almeno uno dei 2 threads)
+- chiedere se dobbiamo cambiare l'intefraccia (di freeRTOS)
