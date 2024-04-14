@@ -1062,6 +1062,8 @@ static void prvInitialiseNewTask( TaskFunction_t pxTaskCode,
     {
         mtCOVERAGE_TEST_MARKER();
     }
+    pxNewTCB->pxTaskValidation = NULL;
+    pxNewTCB->pxTaskSUS = NULL;
 }
 /*-----------------------------------------------------------*/
 

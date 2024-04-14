@@ -33,7 +33,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-
+#define DEBUG
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -126,9 +126,11 @@ int main(void)
   /* creation of TheTask */
   TheTaskHandle = osThreadNew(TheTaskBody, NULL, &TheTask_attributes);
 
-  char buffer_bello[500];
-  vTaskList(buffer_bello);
-  printf("%s\n", buffer_bello);
+  #ifdef DEBUG
+  	  char buffer_bello[500];
+  	  vTaskList(buffer_bello);
+  	  printf("%s\n", buffer_bello);
+  #endif
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */

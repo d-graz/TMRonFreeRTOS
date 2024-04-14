@@ -1301,6 +1301,8 @@ typedef struct xSTATIC_TCB
     #if ( configUSE_POSIX_ERRNO == 1 )
         int iDummy22;
     #endif
+    struct xSTATIC_TCB * pxDummy23; // Pointer to the next TCB in the delayed task list.
+    struct xSTATIC_TCB * pxDummy24; // Pointer to the TCB of the task that this task is blocked on.
 } StaticTask_t;
 
 /*
