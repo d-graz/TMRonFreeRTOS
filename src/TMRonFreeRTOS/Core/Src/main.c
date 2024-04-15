@@ -33,7 +33,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define DEBUG
+#define __DEBUG__
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -126,10 +126,10 @@ int main(void)
   /* creation of TheTask */
   TheTaskHandle = osThreadNew(TheTaskBody, NULL, &TheTask_attributes);
 
-  #ifdef DEBUG
-  	  char buffer_bello[500];
-  	  vTaskList(buffer_bello);
-  	  printf("%s\n", buffer_bello);
+  #ifdef __DEBUG__
+  	char buffer_bello[500];
+  	vTaskList(buffer_bello);
+  	printf("%s\n", buffer_bello);
   #endif
 
   /* USER CODE BEGIN RTOS_THREADS */
@@ -325,22 +325,26 @@ void TheTaskBody(void *argument)
 {
   /* USER CODE BEGIN TheTaskBody */
 	short unsigned int flip = 0;
-	TaskStatus_t * status = NULL;
+	long unsigned int counter = 0;
+	//TaskStatus_t status;
+	TaskHandle_t currentTaskHandle;
   /* Infinite loop */
   for(;;)
   {
+	counter++;
     if (flip == 0){
     	flip = 1;
-    	printf("Switching led on\n");
+    	//printf("Switching led on\n");
     } else {
     	flip = 0;
-    	printf("Switching led off\n");
+    	//printf("Switching led off\n");
     }
     HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
-    vTaskGetInfo(NULL, status, pdFALSE, eInvalid);
-    printf("Task name: %s\n", status->pcTaskName);
-    
-    osDelay(5000);
+    //vTaskGetInfo(NULL, &status, pdFALSE, eInvalid);
+    //printf("Task %s at cycle %lu\n", status.pcTaskName, counter);
+    currentTaskHandle = xTaskGetCurrentTaskHandle();
+    compareTaskStack(currentTaskHandle);
+    osDelay(30000);
   }
   /* USER CODE END TheTaskBody */
 }

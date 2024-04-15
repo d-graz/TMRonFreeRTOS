@@ -738,8 +738,8 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB ) PRIVILEGED_FUNCTION;
         sprintf(pcName_vd, "%s_vd", pcName);
 
         // create a new handle for the validation task
-        TaskHandle_t * pxCreatedTask_vd = NULL;
-        xReturn = GtaskCreate( pxTaskCode, pcName_vd, usStackDepth, pvParameters, uxPriority, pxCreatedTask_vd );
+        TaskHandle_t createdTask_vd = NULL;
+        xReturn = GtaskCreate( pxTaskCode, pcName_vd, usStackDepth, pvParameters, uxPriority, &createdTask_vd );
         if (xReturn != pdPASS){
             xReturn = pdFAIL;
             // TODO: [CRITICAL] delete the first task
@@ -747,14 +747,14 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB ) PRIVILEGED_FUNCTION;
         }
 
         // linking the validation task to the original task
-        TCB_t * tcb_pxCreatedTask = (TCB_t *) pxCreatedTask;
-        TCB_t * tcb_pxCreatedTask_vd = (TCB_t *) pxCreatedTask_vd;
+        TCB_t * tcb_createdTask = (TCB_t *) *pxCreatedTask;
+        TCB_t * tcb_createdTask_vd = (TCB_t *) createdTask_vd;
 
-        tcb_pxCreatedTask->pxTaskValidation = tcb_pxCreatedTask_vd;
-        tcb_pxCreatedTask->pxTaskSUS = NULL;
+        tcb_createdTask->pxTaskValidation = tcb_createdTask_vd;
+        tcb_createdTask->pxTaskSUS = NULL;
 
-        tcb_pxCreatedTask_vd->pxTaskValidation = tcb_pxCreatedTask;
-        tcb_pxCreatedTask_vd->pxTaskSUS = NULL;
+        tcb_createdTask_vd->pxTaskValidation = tcb_createdTask;
+        tcb_createdTask_vd->pxTaskSUS = NULL;
 
         return xReturn;
         
@@ -5471,3 +5471,49 @@ static void prvAddCurrentTaskToDelayedList( TickType_t xTicksToWait,
     #endif
 
 #endif /* if ( configINCLUDE_FREERTOS_TASK_C_ADDITIONS_H == 1 ) */
+
+void compareTaskStacks(TCB_t *tcb1, TCB_t *tcb2) {
+    StackType_t *base1 = tcb1->pxStack;
+    StackType_t *base2 = tcb2->pxStack;
+    StackType_t *top1 = tcb1->pxTopOfStack; //FIXME [MEDIUM] : maybe this should be volatile
+    StackType_t *top2 = tcb2->pxTopOfStack; //FIXME [MEDIUM] : maybe this should be volatile
+
+    UBaseType_t size1 = top1 - base1;
+    UBaseType_t size2 = top2 - base2;
+
+    if (size1 != size2) {
+        printf("The stack sizes are not equal\n");
+        return;
+    } else {
+        printf("The stack sizes are equal of size %lu\n", size1);
+    }
+
+    UBaseType_t start = 0;
+    short unsigned int inRange = 0;
+
+    for (UBaseType_t i = 0; i < size1; i++) {
+        if (base1[i] == base2[i]) {
+            if (!inRange) {
+                start = i;
+                inRange = 1;
+            }
+        } else {
+            if (inRange) {
+                printf("From index %lu to %lu the 2 stacks are equal\n", start, i - 1);
+                inRange = 0;
+            }
+        }
+    }
+
+    if (inRange) {
+        printf("From index %lu to %lu the 2 stacks are equal\n", start, size1 - 1);
+    }
+    printf("\n\n");
+}
+
+void compareTaskStack(TaskHandle_t task){
+    TCB_t *tcb = (TCB_t *)task;
+    printf("Currently active task: %s\n", tcb->pcTaskName);
+    printf("Validation task : %s\n", tcb->pxTaskValidation->pcTaskName);
+    compareTaskStacks(tcb, tcb->pxTaskValidation);
+}

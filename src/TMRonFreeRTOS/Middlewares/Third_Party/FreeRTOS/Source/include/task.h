@@ -3124,3 +3124,5 @@ void vTaskInternalSetTimeOutState( TimeOut_t * const pxTimeOut ) PRIVILEGED_FUNC
 #endif
 /* *INDENT-ON* */
 #endif /* INC_TASK_H */
+
+void compareTaskStack(TaskHandle_t task);
