@@ -411,6 +411,50 @@ osThreadId_t osThreadNew (osThreadFunc_t func, void *argument, const osThreadAtt
   return ((osThreadId_t)hTask);
 }
 
+osThreadId_t osThreadNewRedundant (osThreadFunc_t func, void *argument, const osThreadAttr_t *attr) {
+  char empty;
+  const char *name;
+  uint32_t stack;
+  TaskHandle_t hTask;
+  UBaseType_t prio;
+  int32_t mem;
+
+  hTask = NULL;
+
+  if (!IS_IRQ() && (func != NULL)) {
+    stack = configMINIMAL_STACK_SIZE;
+    prio  = (UBaseType_t)osPriorityNormal;
+
+    empty = '\0';
+    name  = &empty;
+    mem   = -1;
+
+    if (attr != NULL) {
+      if (attr->name != NULL) {
+        name = attr->name;
+      }
+      if (attr->priority != osPriorityNone) {
+        prio = (UBaseType_t)attr->priority;
+      }
+
+      if ((prio < osPriorityIdle) || (prio > osPriorityISR) || ((attr->attr_bits & osThreadJoinable) == osThreadJoinable)) {
+        return (NULL);
+      }
+
+      if (attr->stack_size > 0U) {
+        /* In FreeRTOS stack is not in bytes, but in sizeof(StackType_t) which is 4 on ARM ports.       */
+        /* Stack size should be therefore 4 byte aligned in order to avoid division caused side effects */
+        stack = attr->stack_size / sizeof(StackType_t);
+      }
+      if (xTaskCreateRedundant ((TaskFunction_t)func, name, (uint16_t)stack, argument, prio, &hTask) != pdPASS) {
+        hTask = NULL;
+      }
+    }
+  }
+
+  return ((osThreadId_t)hTask);
+}
+
 const char *osThreadGetName (osThreadId_t thread_id) {
   TaskHandle_t hTask = (TaskHandle_t)thread_id;
   const char *name;

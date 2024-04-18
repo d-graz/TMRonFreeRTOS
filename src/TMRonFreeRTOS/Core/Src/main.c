@@ -124,7 +124,7 @@ int main(void)
 
   /* Create the thread(s) */
   /* creation of TheTask */
-  TheTaskHandle = osThreadNew(TheTaskBody, NULL, &TheTask_attributes);
+  TheTaskHandle = osThreadNewRedundant(TheTaskBody, NULL, &TheTask_attributes);
 
   #ifdef __DEBUG__
   	char buffer_bello[500];

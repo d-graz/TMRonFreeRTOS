@@ -1141,6 +1141,12 @@
     #define configRUN_ADDITIONAL_TESTS    0
 #endif
 
+/* Set the configUSE_REDUNTANT_TASK to 1 to enable the redundant task feature
+ * and 0 to disable it. */
+#ifndef configUSE_REDUNDANT_TASK
+    #define configUSE_REDUNDANT_TASK    0
+#endif
+
 
 /* Sometimes the FreeRTOSConfig.h settings only allow a task to be created using
  * dynamically allocated RAM, in which case when any task is deleted it is known
@@ -1301,8 +1307,11 @@ typedef struct xSTATIC_TCB
     #if ( configUSE_POSIX_ERRNO == 1 )
         int iDummy22;
     #endif
-    struct xSTATIC_TCB * pxDummy23; // Pointer to the validation task.
-    struct xSTATIC_TCB * pxDummy24; // Pointer to the suspended task.
+    #if ( configUSE_REDUNDANT_TASK == 1)
+        struct xSTATIC_TCB * pxDummy23; // Pointer to the validation task.
+        struct xSTATIC_TCB * pxDummy24; // Pointer to the suspended task.
+        uint64_t ullDummy25;            // Iteration counter.
+    #endif
 } StaticTask_t;
 
 /*

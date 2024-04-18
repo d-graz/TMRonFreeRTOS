@@ -318,8 +318,12 @@ typedef struct tskTaskControlBlock       /* The old naming convention is used to
     #if ( configUSE_POSIX_ERRNO == 1 )
         int iTaskErrno;
     #endif
-    struct tskTaskControlBlock * pxTaskValidation; /*< Used for validation of the TCB. */
-    struct tskTaskControlBlock * pxTaskSUS;        /*< Used for error correction of the TCB in case of divergent results in the validation task. */
+
+    #if (configUSE_REDUNDANT_TASK == 1)
+        struct tskTaskControlBlock * pxTaskValidation; /*< Used for validation of the TCB. */
+        struct tskTaskControlBlock * pxTaskSUS;        /*< Used for error correction of the TCB in case of divergent results in the validation task. */
+        uint64_t iterationCounter;                     /*< Used for controlling the execution status of the task. */
+    #endif
 } tskTCB;
 
 /* The old tskTCB name is maintained above then typedefed to the new TCB_t name
@@ -720,47 +724,53 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB ) PRIVILEGED_FUNCTION;
 
 #if ( configSUPPORT_DYNAMIC_ALLOCATION == 1 )
 
+    #if ( configUSE_REDUNDANT_TASK == 1 )
+
+        BaseType_t xTaskCreateRedundant( TaskFunction_t pxTaskCode,
+                                const char * const pcName, /*lint !e971 Unqualified char types are allowed for strings and single characters only. */
+                                const configSTACK_DEPTH_TYPE usStackDepth,
+                                void * const pvParameters,
+                                UBaseType_t uxPriority,
+                                TaskHandle_t * const pxCreatedTask )
+        {
+            BaseType_t xReturn;
+            xReturn = xTaskCreate( pxTaskCode, pcName, usStackDepth, pvParameters, uxPriority, pxCreatedTask );
+            if (xReturn != pdPASS){
+                xReturn = pdFAIL;
+                return xReturn;
+            }
+            //FIXME: [LOW] possible buffer overflow if pcName is too long
+            char pcName_vd[configMAX_TASK_NAME_LEN];
+            sprintf(pcName_vd, "%s_vd", pcName);
+
+            // create a new handle for the validation task
+            TaskHandle_t createdTask_vd = NULL;
+            xReturn = xTaskCreate( pxTaskCode, pcName_vd, usStackDepth, pvParameters, uxPriority, &createdTask_vd );
+            if (xReturn != pdPASS){
+                xReturn = pdFAIL;
+                // TODO: [CRITICAL] delete the first task
+                return xReturn;
+            }
+
+            // linking the validation task to the original task
+            TCB_t * tcb_createdTask = (TCB_t *) *pxCreatedTask;
+            TCB_t * tcb_createdTask_vd = (TCB_t *) createdTask_vd;
+
+            tcb_createdTask->pxTaskValidation = tcb_createdTask_vd;
+            tcb_createdTask->pxTaskSUS = NULL;
+            tcb_createdTask->iterationCounter = 0;
+
+            tcb_createdTask_vd->pxTaskValidation = tcb_createdTask;
+            tcb_createdTask_vd->pxTaskSUS = NULL;
+            tcb_createdTask_vd->iterationCounter = 0;
+
+            return xReturn;
+
+        }
+
+    #endif
+
     BaseType_t xTaskCreate( TaskFunction_t pxTaskCode,
-                            const char * const pcName, /*lint !e971 Unqualified char types are allowed for strings and single characters only. */
-                            const configSTACK_DEPTH_TYPE usStackDepth,
-                            void * const pvParameters,
-                            UBaseType_t uxPriority,
-                            TaskHandle_t * const pxCreatedTask )
-    {
-        BaseType_t xReturn;
-        xReturn = GtaskCreate( pxTaskCode, pcName, usStackDepth, pvParameters, uxPriority, pxCreatedTask );
-        if (xReturn != pdPASS){
-            xReturn = pdFAIL;
-            return xReturn;
-        }
-        //FIXME: [LOW] possible buffer overflow if pcName is too long
-        char pcName_vd[configMAX_TASK_NAME_LEN];
-        sprintf(pcName_vd, "%s_vd", pcName);
-
-        // create a new handle for the validation task
-        TaskHandle_t createdTask_vd = NULL;
-        xReturn = GtaskCreate( pxTaskCode, pcName_vd, usStackDepth, pvParameters, uxPriority, &createdTask_vd );
-        if (xReturn != pdPASS){
-            xReturn = pdFAIL;
-            // TODO: [CRITICAL] delete the first task
-            return xReturn;
-        }
-
-        // linking the validation task to the original task
-        TCB_t * tcb_createdTask = (TCB_t *) *pxCreatedTask;
-        TCB_t * tcb_createdTask_vd = (TCB_t *) createdTask_vd;
-
-        tcb_createdTask->pxTaskValidation = tcb_createdTask_vd;
-        tcb_createdTask->pxTaskSUS = NULL;
-
-        tcb_createdTask_vd->pxTaskValidation = tcb_createdTask;
-        tcb_createdTask_vd->pxTaskSUS = NULL;
-
-        return xReturn;
-        
-    }
-
-    BaseType_t GtaskCreate( TaskFunction_t pxTaskCode,
                             const char * const pcName, /*lint !e971 Unqualified char types are allowed for strings and single characters only. */
                             const configSTACK_DEPTH_TYPE usStackDepth,
                             void * const pvParameters,
@@ -5472,6 +5482,7 @@ static void prvAddCurrentTaskToDelayedList( TickType_t xTicksToWait,
 
 #endif /* if ( configINCLUDE_FREERTOS_TASK_C_ADDITIONS_H == 1 ) */
 
+//TODO: [HIGH] trash the code below
 void compareTaskStacks(TCB_t *tcb1, TCB_t *tcb2) {
     StackType_t *base1 = tcb1->pxStack;
     StackType_t *base2 = tcb2->pxStack;
@@ -5511,6 +5522,7 @@ void compareTaskStacks(TCB_t *tcb1, TCB_t *tcb2) {
     printf("\n\n");
 }
 
+//TODO: [HIGH] trash the code below
 void compareTaskStack(TaskHandle_t task){
     TCB_t *tcb = (TCB_t *)task;
     printf("Currently active task: %s\n", tcb->pcTaskName);

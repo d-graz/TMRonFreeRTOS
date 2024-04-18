@@ -3125,4 +3125,12 @@ void vTaskInternalSetTimeOutState( TimeOut_t * const pxTimeOut ) PRIVILEGED_FUNC
 /* *INDENT-ON* */
 #endif /* INC_TASK_H */
 
+BaseType_t xTaskCreateRedundant( TaskFunction_t pxTaskCode,
+                                const char * const pcName,
+                                const configSTACK_DEPTH_TYPE usStackDepth,
+                                void * const pvParameters,
+                                UBaseType_t uxPriority,
+                                TaskHandle_t * const pxCreatedTask ) PRIVILEGED_FUNCTION;
+
+//TODO: [HIGH] eliminate this function
 void compareTaskStack(TaskHandle_t task);
