@@ -3132,5 +3132,16 @@ BaseType_t xTaskCreateRedundant( TaskFunction_t pxTaskCode,
                                 UBaseType_t uxPriority,
                                 TaskHandle_t * const pxCreatedTask ) PRIVILEGED_FUNCTION;
 
+
+void taskDeleteRedundant(TaskHandle_t task); //delete task and associated validation and SUS task (if present)
+
 //TODO: [HIGH] eliminate this function
 void compareTaskStack(TaskHandle_t task);
+
+//UTILS
+
+//TODO: [LOW] eliminate utils before release
+void printTaskList();
+BaseType_t isValidationTask(TaskHandle_t task);
+BaseType_t isTaskAhead(TaskHandle_t task);
+void increaseIterationCounter(TaskHandle_t task);

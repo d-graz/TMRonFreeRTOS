@@ -48,6 +48,20 @@ UART_HandleTypeDef huart2;
 osThreadId_t TheTaskHandle;
 const osThreadAttr_t TheTask_attributes = {
   .name = "TheTask",
+  .stack_size = 512 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
+
+osThreadId_t taskUtilHandle;
+const osThreadAttr_t taskUtil_attributes = {
+  .name = "taskUtil",
+  .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
+
+osThreadId_t taskDebugHandle;
+const osThreadAttr_t taskDebug_attributes = {
+  .name = "taskDebug",
   .stack_size = 128 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
@@ -59,8 +73,10 @@ const osThreadAttr_t TheTask_attributes = {
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_USART2_UART_Init(void);
-void TheTaskBody(void *argument);
 
+void TheTaskBody(void *argument);
+void taskUtilBody(void *argument);
+void taskDebugBody(void *argument);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -125,11 +141,11 @@ int main(void)
   /* Create the thread(s) */
   /* creation of TheTask */
   TheTaskHandle = osThreadNewRedundant(TheTaskBody, NULL, &TheTask_attributes);
+  taskDebugHandle = osThreadNewRedundant(taskDebugBody, NULL, &taskDebug_attributes);
+  taskUtilHandle = osThreadNewRedundant(taskUtilBody, NULL, &taskUtil_attributes);
 
   #ifdef __DEBUG__
-  	char buffer_bello[500];
-  	vTaskList(buffer_bello);
-  	printf("%s\n", buffer_bello);
+  	printTaskList();
   #endif
 
   /* USER CODE BEGIN RTOS_THREADS */
@@ -325,13 +341,16 @@ void TheTaskBody(void *argument)
 {
   /* USER CODE BEGIN TheTaskBody */
 	short unsigned int flip = 0;
-	long unsigned int counter = 0;
+	short unsigned int counter = 0;
 	//TaskStatus_t status;
-	TaskHandle_t currentTaskHandle;
+	//TaskHandle_t currentTaskHandle;
   /* Infinite loop */
   for(;;)
   {
-	counter++;
+    if (counter == 10  && isValidationTask(xTaskGetCurrentTaskHandle())){ //print taskList periodically, check validationTask to avoid double printing
+    	printTaskList();
+    }
+    
     if (flip == 0){
     	flip = 1;
     	//printf("Switching led on\n");
@@ -342,13 +361,57 @@ void TheTaskBody(void *argument)
     HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
     //vTaskGetInfo(NULL, &status, pdFALSE, eInvalid);
     //printf("Task %s at cycle %lu\n", status.pcTaskName, counter);
-    currentTaskHandle = xTaskGetCurrentTaskHandle();
-    compareTaskStack(currentTaskHandle);
-    osDelay(30000);
+    //currentTaskHandle = xTaskGetCurrentTaskHandle();
+    //compareTaskStack(currentTaskHandle);
+    counter++;
+    osDelay(5000);
   }
   /* USER CODE END TheTaskBody */
 }
 
+void taskUtilBody(void *argument)
+{
+  int counter = 1;
+  for(;;)
+  {
+    printf("util %d\n", counter);
+    if(counter==3){
+      TaskHandle_t utilHandle= xTaskGetCurrentTaskHandle();
+      if(isValidationTask(utilHandle)){//check if the isValidationTask function works correctly
+        printf("%s is a validation task\n", pcTaskGetName(utilHandle));
+
+        increaseIterationCounter(utilHandle); //manually increase iteration counter until it' correctly implemented
+
+        if(isTaskAhead(utilHandle)){//check if the isTaskAhead function works correctly
+          printf("print if isTaskAhead function correctly\n");
+        }
+      }
+      else{
+        printf("%s is not a validation task\n", pcTaskGetName(utilHandle));
+      }
+    }
+    
+    counter++;
+    osDelay(6000);
+  }
+}
+
+void taskDebugBody(void *argument)
+{
+  printf("at iteration 5, task Util and task Util_vd will be deleted\n"); //print information about check
+  int counter = 1;
+  for(;;)
+  {
+    printf("debug, %d\n", counter);
+    if(counter == 5){
+      TaskHandle_t utilHandle= xTaskGetHandle("taskUtil");
+      if(utilHandle != NULL){
+        taskDeleteRedundant(utilHandle);} //check if the taskDeleteRedundant function works correctly
+    }
+    counter++;
+    osDelay(3000);
+  }
+}
 /**
   * @brief  Period elapsed callback in non blocking mode
   * @note   This function is called  when TIM2 interrupt took place, inside
