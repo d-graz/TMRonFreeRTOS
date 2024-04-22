@@ -5490,8 +5490,8 @@ static void prvAddCurrentTaskToDelayedList( TickType_t xTicksToWait,
 void compareTaskStacks(TCB_t *tcb1, TCB_t *tcb2) {
     StackType_t *base1 = tcb1->pxStack;
     StackType_t *base2 = tcb2->pxStack;
-    StackType_t *top1 = tcb1->pxTopOfStack; //FIXME [MEDIUM] : maybe this should be volatile
-    StackType_t *top2 = tcb2->pxTopOfStack; //FIXME [MEDIUM] : maybe this should be volatile
+    StackType_t *top1 = tcb1->pxTopOfStack;
+    StackType_t *top2 = tcb2->pxTopOfStack;
 
     UBaseType_t size1 = top1 - base1;
     UBaseType_t size2 = top2 - base2;

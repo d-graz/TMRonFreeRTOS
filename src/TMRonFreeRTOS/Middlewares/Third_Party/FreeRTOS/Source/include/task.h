@@ -3125,12 +3125,49 @@ void vTaskInternalSetTimeOutState( TimeOut_t * const pxTimeOut ) PRIVILEGED_FUNC
 /* *INDENT-ON* */
 #endif /* INC_TASK_H */
 
+/*
+ * Creates a new redundant task.
+ * A redundant task is a task that is created twice and runs in parallel.
+ * Every execution of the task is checked by a validation task.
+ * See doc at https://github.com/d-graz/TMRonFreeRTOS 
+*/
 BaseType_t xTaskCreateRedundant( TaskFunction_t pxTaskCode,
                                 const char * const pcName,
                                 const configSTACK_DEPTH_TYPE usStackDepth,
                                 void * const pvParameters,
                                 UBaseType_t uxPriority,
                                 TaskHandle_t * const pxCreatedTask ) PRIVILEGED_FUNCTION;
+
+/*
+ * Links the commit function of a task to the task control block.
+ * This commit function is executed every time the task is validated
+ * (hence showing correct behavior).
+*/
+void xSetCommitFunction(TaskHandle_t task, void (*pxCommitFunction)(void*), void* pxCommitFunctionArgs);
+
+/*
+ * Sets the output zone of a task in the (task control block??).
+ * This area will be checked during execution to verify the correctness of the task.
+ * //TODO: da decidere a questo punto se scrivere nel TCB o rimanere nell'idea originale del TLS
+*/
+void xSetOutput(TaskHandle_t task, void* pxStruct, UBaseType_t uxSize, BaseType_t mallocNeeded);
+
+/*
+ * Returns the output zone of a task from the task control block.
+*/
+void* xGetOutput(TaskHandle_t task);
+
+/*
+* Sets the input zone of a task in the task control block.
+* This area is reserved to all the global variables that the task needs in order to assure correct execution.
+* In case of failure when controlling the task, a third task i spawned using this input zone.
+*/
+void xSetInput(TaskHandle_t task, void* pxStruct, UBaseType_t uxSize, BaseType_t mallocNeeded);
+
+/*
+ * Returns the input zone of a task.
+*/
+void* xGetInput(TaskHandle_t task);
 
 
 void taskDeleteRedundant(TaskHandle_t task); //delete task and associated validation and SUS task (if present)
