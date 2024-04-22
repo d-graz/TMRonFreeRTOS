@@ -412,7 +412,7 @@
 
 /* Called after a task has been selected to run.  pxCurrentTCB holds a pointer
  * to the task control block of the selected task. */
-    #define traceTASK_SWITCHED_IN()
+    #define traceTASK_SWITCHED_IN() //TODO: [CRITICAL] [traceTASK_SWITCHED_IN] Implement a function that checks if the task (redundant) is to ahead in respect to the validation one, if so freezes it and changes to other task
 #endif
 
 #ifndef traceINCREASE_TICK_COUNT

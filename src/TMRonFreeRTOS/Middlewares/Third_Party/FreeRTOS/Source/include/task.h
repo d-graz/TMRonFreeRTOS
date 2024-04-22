@@ -3143,18 +3143,20 @@ BaseType_t xTaskCreateRedundant( TaskFunction_t pxTaskCode,
  * This commit function is executed every time the task is validated
  * (hence showing correct behavior).
 */
+//TODO: [CRTITICAL] [xSetCommitFunction] implement this function
 void xSetCommitFunction(TaskHandle_t task, void (*pxCommitFunction)(void*), void* pxCommitFunctionArgs);
 
 /*
- * Sets the output zone of a task in the (task control block??).
+ * Sets the output zone of a task in the task control block.
  * This area will be checked during execution to verify the correctness of the task.
- * //TODO: da decidere a questo punto se scrivere nel TCB o rimanere nell'idea originale del TLS
 */
+//TODO: [CRTITICAL] [xSetOutput] implement this function
 void xSetOutput(TaskHandle_t task, void* pxStruct, UBaseType_t uxSize, BaseType_t mallocNeeded);
 
 /*
  * Returns the output zone of a task from the task control block.
 */
+//TODO: [CRTITICAL] [xGetOutput] implement this function
 void* xGetOutput(TaskHandle_t task);
 
 /*
@@ -3162,23 +3164,23 @@ void* xGetOutput(TaskHandle_t task);
 * This area is reserved to all the global variables that the task needs in order to assure correct execution.
 * In case of failure when controlling the task, a third task i spawned using this input zone.
 */
+//TODO: [CRTITICAL] [xSetInput] implement this function
 void xSetInput(TaskHandle_t task, void* pxStruct, UBaseType_t uxSize, BaseType_t mallocNeeded);
 
 /*
  * Returns the input zone of a task.
 */
+//TODO: [CRTITICAL] [xGetInput] implement this function
 void* xGetInput(TaskHandle_t task);
 
 
 void taskDeleteRedundant(TaskHandle_t task); //delete task and associated validation and SUS task (if present)
 
-//TODO: [HIGH] eliminate this function
-void compareTaskStack(TaskHandle_t task);
-
 //UTILS
 
-//TODO: [LOW] eliminate utils before release
+//TODO: [DEBUG] eliminate utils before release
 void printTaskList();
 BaseType_t isValidationTask(TaskHandle_t task);
 BaseType_t isTaskAhead(TaskHandle_t task);
 void increaseIterationCounter(TaskHandle_t task);
+void compareTaskStack(TaskHandle_t task);

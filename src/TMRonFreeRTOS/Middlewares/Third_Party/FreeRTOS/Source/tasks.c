@@ -59,7 +59,7 @@
 #endif /* configUSE_STATS_FORMATTING_FUNCTIONS == 1 ) */
 
 //UTILS DEFINITIONS
-//TODO: [HIGH] either move to separate file or remove
+//TODO: [DEBUG] remove before publishings
 #define TASK_LIST_BUFFER_SIZE 500
 
 #if ( configUSE_PREEMPTION == 0 )
@@ -752,7 +752,7 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB ) PRIVILEGED_FUNCTION;
             xReturn = xTaskCreate( pxTaskCode, pcName_vd, usStackDepth, pvParameters, uxPriority, &createdTask_vd );
             if (xReturn != pdPASS){
                 xReturn = pdFAIL;
-                // TODO: [CRITICAL] delete the first task
+                // TODO: [CRITICAL] [xTaskCreateRedundant] delete the first task created if the second one fails upon creation
                 return xReturn;
             }
 
@@ -1356,6 +1356,11 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB )
 
 #if ( INCLUDE_vTaskDelay == 1 )
 
+    //TODO: [CRITICAL] [vTaskDelay] modificare
+    /*
+    - bisogna aumentare il valore di iterationCounter
+    - se i valori combaciano si fa un controllo
+    */
     void vTaskDelay( const TickType_t xTicksToDelay )
     {
         BaseType_t xAlreadyYielded = pdFALSE;
@@ -1728,6 +1733,11 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB )
 
 #if ( INCLUDE_vTaskSuspend == 1 )
 
+    //TODO: [CRITICAL] [vTaskSuspend] modificare
+    /*
+    - modificare che se il chiamante è il task corrente allora si sospende solo lei
+    - se il chiamante è un task diverso allora sospende il task e anche gli altri task di validazione e sus
+    */
     void vTaskSuspend( TaskHandle_t xTaskToSuspend )
     {
         TCB_t * pxTCB;
@@ -5486,7 +5496,86 @@ static void prvAddCurrentTaskToDelayedList( TickType_t xTicksToWait,
 
 #endif /* if ( configINCLUDE_FREERTOS_TASK_C_ADDITIONS_H == 1 ) */
 
-//TODO: [HIGH] trash the code below
+/**
+ * Delete task and related validation task. 
+ * 
+*/
+void taskDeleteRedundant(TaskHandle_t task) {
+    if(task!=NULL){
+        TCB_t *tcb = (TCB_t *)task;
+        taskENTER_CRITICAL();
+        if (tcb->pxTaskValidation != NULL) {
+            // Delete the validation task
+            vTaskDelete((TaskHandle_t) tcb->pxTaskValidation);
+        }
+        if(tcb->pxTaskSUS!=NULL){ //NOTE: should never be true
+            vTaskDelete((TaskHandle_t) tcb->pxTaskSUS);    
+        }
+        // Delete the main task
+        vTaskDelete(task);
+        taskEXIT_CRITICAL();
+    }
+}
+
+// UTILS AND DEBUGGING BELOW
+// TODO: [DEBUG] remove the code below before publishing
+
+/**
+ * prints a task list
+*/
+void printTaskList() {
+    char taskListBuffer[TASK_LIST_BUFFER_SIZE];
+    vTaskList(taskListBuffer);
+    printf("%s\n", taskListBuffer);
+}
+
+/**
+ * returns pdTRUE if task is a validation task pdFALSE otherwise.
+ * Note that this choice is arbitrary, there is no master-slave relation between a task and a validation task.
+*/
+BaseType_t isValidationTask(TaskHandle_t task) {
+    TCB_t *tcb = (TCB_t *)task;
+    if(strstr(tcb->pcTaskName, "_vd") != NULL)
+    {
+        return pdTRUE;
+    }
+    else{
+        return pdFALSE;
+    }
+}
+
+/**
+ * this function returns 1 if the task is ahead of its validation task, -1 if it is behind and 0 if they are equal.
+ * If the task checked is currently running, the resulting value might not be reflective of the reality, depending on
+ * when the iterationCounter is updated.
+ * //TODO: [MEDIUM] decide the standard for incrementing the iterationCounter.
+*/
+BaseType_t isTaskAhead(TaskHandle_t task) {
+    TCB_t *tcb = (TCB_t *)task;
+    if(tcb->iterationCounter>tcb->pxTaskValidation->iterationCounter)
+    {
+        return 1;
+    }
+    else if(tcb->iterationCounter<tcb->pxTaskValidation->iterationCounter)
+    {
+        return -1;
+    }
+    else{
+        return 0;
+    }
+}
+
+/**
+ * manual incrementation of the iterationCounter, should not be used normally.
+*/
+void increaseIterationCounter(TaskHandle_t task) {
+    TCB_t *tcb = (TCB_t *)task;
+    tcb->iterationCounter++;
+}
+
+/*
+ * Compares the stack of 2 tasks given their tcbs
+*/
 void compareTaskStacks(TCB_t *tcb1, TCB_t *tcb2) {
     StackType_t *base1 = tcb1->pxStack;
     StackType_t *base2 = tcb2->pxStack;
@@ -5526,87 +5615,12 @@ void compareTaskStacks(TCB_t *tcb1, TCB_t *tcb2) {
     printf("\n\n");
 }
 
-//TODO: [HIGH] trash the code below
+/*
+ * Caller of compareTaskStacks(TCB_t *tcb1, TCB_t *tcb2)
+*/
 void compareTaskStack(TaskHandle_t task){
     TCB_t *tcb = (TCB_t *)task;
     printf("Currently active task: %s\n", tcb->pcTaskName);
     printf("Validation task : %s\n", tcb->pxTaskValidation->pcTaskName);
     compareTaskStacks(tcb, tcb->pxTaskValidation);
-}
-
-/**
- * Delete task and related validation task. 
- * 
-*/
-void taskDeleteRedundant(TaskHandle_t task) {
-    if(task!=NULL){
-        TCB_t *tcb = (TCB_t *)task;
-        taskENTER_CRITICAL();
-        if (tcb->pxTaskValidation != NULL) {
-            // Delete the validation task
-            vTaskDelete((TaskHandle_t) tcb->pxTaskValidation);
-        }
-        if(tcb->pxTaskSUS!=NULL){ //NOTE: should never be true
-            vTaskDelete((TaskHandle_t) tcb->pxTaskSUS);    
-        }
-        // Delete the main task
-        vTaskDelete(task);
-        taskEXIT_CRITICAL();
-    }
-}
-
-// UTILS AND DEBUGGING BELOW
-// TODO: [LOW] remove the code below before publishing
-
-/**
- * prints a task list
-*/
-void printTaskList() {
-    char taskListBuffer[TASK_LIST_BUFFER_SIZE];
-    vTaskList(taskListBuffer);
-    printf("%s\n", taskListBuffer);
-}
-
-/**
- * returns pdTRUE if task is a validation task pdFALSE otherwise.
- * Note that this choice is arbitrary, there is no master-slave relation between a task and a validation task.
-*/
-BaseType_t isValidationTask(TaskHandle_t task) {
-    TCB_t *tcb = (TCB_t *)task;
-    if(strstr(tcb->pcTaskName, "_vd") != NULL)
-    {
-        return pdTRUE;
-    }
-    else{
-        return pdFALSE;
-    }
-}
-
-/**
- * this function returns 1 if the task is ahead of its validation task, -1 if it is behind and 0 if they are equal.
- * If the task checked is currently running, the resulting value might not be reflective of the reality, depending on
- * when the iterationCounter is updated.
- * TODO: [MEDIUM] decide the standard for incrementing the iterationCounter.
-*/
-BaseType_t isTaskAhead(TaskHandle_t task) {
-    TCB_t *tcb = (TCB_t *)task;
-    if(tcb->iterationCounter>tcb->pxTaskValidation->iterationCounter)
-    {
-        return 1;
-    }
-    else if(tcb->iterationCounter<tcb->pxTaskValidation->iterationCounter)
-    {
-        return -1;
-    }
-    else{
-        return 0;
-    }
-}
-
-/**
- * manual incrementation of the iterationCounter, should not be used normally.
-*/
-void increaseIterationCounter(TaskHandle_t task) {
-    TCB_t *tcb = (TCB_t *)task;
-    tcb->iterationCounter++;
 }
