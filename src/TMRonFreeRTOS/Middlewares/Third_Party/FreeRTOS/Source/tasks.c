@@ -323,10 +323,19 @@ typedef struct tskTaskControlBlock       /* The old naming convention is used to
         int iTaskErrno;
     #endif
 
+    BaseType_t isRedundantTask; /*< The type of the task. */
+    //TODO: [CRITICAL] [TCB_t] modificare dove dovuto il fatto che alla creazione di default ogni task è non ridondante
+
     #if (configUSE_REDUNDANT_TASK == 1)
         struct tskTaskControlBlock * pxTaskValidation; /*< Used for validation of the TCB. */
         struct tskTaskControlBlock * pxTaskSUS;        /*< Used for error correction of the TCB in case of divergent results in the validation task. */
         uint64_t iterationCounter;                     /*< Used for controlling the execution status of the task. */
+        void (*pxCommitFunction)(void*);               /*< Used for the commit function of the task. */
+        void *pxCommitFunctionParameter;               /*< Used for the parameter of the commit function of the task. */
+        void * pxInputStruct;                          /*< Used for the input structure of the task. */
+        UBaseType_t uInputStructSize;                  /*< Used for the size of the input structure of the task. */
+        void * pxOutputStruct;                         /*< Used for the output structure of the task. */
+        UBaseType_t uOutputStructSize;                 /*< Used for the size of the output structure of the task. */
     #endif
 } tskTCB;
 
@@ -5495,6 +5504,66 @@ static void prvAddCurrentTaskToDelayedList( TickType_t xTicksToWait,
     #endif
 
 #endif /* if ( configINCLUDE_FREERTOS_TASK_C_ADDITIONS_H == 1 ) */
+
+//TODO: [HIGH] spostare tutte le definizioni di funzioni di rilascio qui dentro
+//TODO: [HIGH] discutere se usare configASSERT o ritornare pdFALSE in caso di errore
+#if (configUSE_REDUNDANT_TASK == 1)
+
+    BaseType_t xSetCommitFunction(TaskHandle_t task, void (*pxCommitFunction)(void*), void* pxCommitFunctionArgs){
+        TCB_t * tcb;
+        tcb = prvGetTCBFromHandle(task);
+        configASSERT(tcb->isRedundantTask == pdTRUE); /* Checks that the task is actually a redundant one*/
+        tcb->pxCommitFunction = pxCommitFunction;
+        tcb->pxCommitFunctionParameter = pxCommitFunctionArgs;
+        return pdTRUE;
+    }
+
+    BaseType_t xSetOutput(TaskHandle_t task, void* pxStruct, UBaseType_t uxSize, BaseType_t mallocNeeded){
+        TCB_t * tcb;
+        tcb = prvGetTCBFromHandle(task);
+        configASSERT(tcb->isRedundantTask == pdTRUE); /* Checks that the task is actually a redundant one*/
+        if (mallocNeeded == pdTRUE) {
+            tcb->pxOutputStruct = pvPortMalloc(uxSize);
+            if (tcb->pxOutputStruct == NULL) {
+                return pdFALSE; /* Return pdFALSE if memory allocation failed */
+            }
+        } else {
+            tcb->pxOutputStruct = pxStruct;
+        }
+        tcb->uOutputStructSize = uxSize;
+        return pdTRUE;
+    }
+
+    void* xGetOutput(TaskHandle_t task){
+        TCB_t * tcb;
+        tcb = prvGetTCBFromHandle(task);
+        configASSERT(tcb->isRedundantTask == pdTRUE); /* Checks that the task is actually a redundant one*/
+        return tcb->pxOutputStruct;
+    }
+
+    BaseType_t xSetInput(TaskHandle_t task, void* pxStruct, UBaseType_t uxSize, BaseType_t mallocNeeded){
+        TCB_t * tcb;
+        tcb = prvGetTCBFromHandle(task);
+        configASSERT(tcb->isRedundantTask == pdTRUE); /* Checks that the task is actually a redundant one*/
+        if (mallocNeeded == pdTRUE) {
+            tcb->pxInputStruct = pvPortMalloc(uxSize);
+            if (tcb->pxInputStruct == NULL) {
+                return pdFALSE; /* Return pdFALSE if memory allocation failed */
+            }
+        } else {
+            tcb->pxInputStruct = pxStruct;
+        }
+        tcb->uInputStructSize = uxSize;
+        return pdTRUE;
+    }
+
+    void* xGetInput(TaskHandle_t task){
+        TCB_t * tcb;
+        tcb = prvGetTCBFromHandle(task);
+        configASSERT(tcb->isRedundantTask == pdTRUE); /* Checks that the task is actually a redundant one*/
+        return tcb->pxInputStruct;
+    }
+#endif
 
 /**
  * Delete task and related validation task. 
