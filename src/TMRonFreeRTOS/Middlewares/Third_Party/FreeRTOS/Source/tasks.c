@@ -771,6 +771,9 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB ) PRIVILEGED_FUNCTION;
             TCB_t * tcb_createdTask_vd = (TCB_t *) createdTask_vd;
             tcb_createdTask->pxTaskValidation = tcb_createdTask_vd;
             tcb_createdTask_vd->pxTaskValidation = tcb_createdTask;
+            //setting task to be redundant
+            tcb_createdTask->isRedundantTask=pdTRUE;
+            tcb_createdTask_vd->isRedundantTask=pdTRUE;
             
             return xReturn;
 
@@ -1822,6 +1825,110 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB )
                 prvResetNextTaskUnblockTime();
             }
             taskEXIT_CRITICAL();
+        }
+        else
+        {
+            mtCOVERAGE_TEST_MARKER();
+        }
+
+        if( pxTCB == pxCurrentTCB )
+        {
+            if( xSchedulerRunning != pdFALSE )
+            {
+                /* The current task has just been suspended. */
+                configASSERT( uxSchedulerSuspended == 0 );
+                portYIELD_WITHIN_API();
+            }
+            else
+            {
+                /* The scheduler is not running, but the task that was pointed
+                 * to by pxCurrentTCB has just been suspended and pxCurrentTCB
+                 * must be adjusted to point to a different task. */
+                if( listCURRENT_LIST_LENGTH( &xSuspendedTaskList ) == uxCurrentNumberOfTasks ) /*lint !e931 Right has no side effect, just volatile. */
+                {
+                    /* No other tasks are ready, so set pxCurrentTCB back to
+                     * NULL so when the next task is created pxCurrentTCB will
+                     * be set to point to it no matter what its relative priority
+                     * is. */
+                    pxCurrentTCB = NULL;
+                }
+                else
+                {
+                    vTaskSwitchContext();
+                }
+            }
+        }
+        else
+        {
+            mtCOVERAGE_TEST_MARKER();
+        }
+    }
+
+    /**
+     * Suspend a task while in a ISR. 
+    */
+    void vTaskSuspendContextSwitch()
+    {
+        TCB_t * pxTCB;
+
+        UBaseType_t save_status = taskENTER_CRITICAL_FROM_ISR();
+        {
+            /* If null is passed in here then it is the running task that is
+             * being suspended. */
+            pxTCB = prvGetTCBFromHandle( NULL );
+
+            traceTASK_SUSPEND( pxTCB );
+
+            /* Remove task from the ready/delayed list and place in the
+             * suspended list. */
+            if( uxListRemove( &( pxTCB->xStateListItem ) ) == ( UBaseType_t ) 0 )
+            {
+                taskRESET_READY_PRIORITY( pxTCB->uxPriority );
+            }
+            else
+            {
+                mtCOVERAGE_TEST_MARKER();
+            }
+
+            /* Is the task waiting on an event also? */
+            if( listLIST_ITEM_CONTAINER( &( pxTCB->xEventListItem ) ) != NULL )
+            {
+                ( void ) uxListRemove( &( pxTCB->xEventListItem ) );
+            }
+            else
+            {
+                mtCOVERAGE_TEST_MARKER();
+            }
+
+            vListInsertEnd( &xSuspendedTaskList, &( pxTCB->xStateListItem ) );
+
+            #if ( configUSE_TASK_NOTIFICATIONS == 1 )
+            {
+                BaseType_t x;
+
+                for( x = 0; x < configTASK_NOTIFICATION_ARRAY_ENTRIES; x++ )
+                {
+                    if( pxTCB->ucNotifyState[ x ] == taskWAITING_NOTIFICATION )
+                    {
+                        /* The task was blocked to wait for a notification, but is
+                         * now suspended, so no notification was received. */
+                        pxTCB->ucNotifyState[ x ] = taskNOT_WAITING_NOTIFICATION;
+                    }
+                }
+            }
+            #endif /* if ( configUSE_TASK_NOTIFICATIONS == 1 ) */
+        }
+        taskEXIT_CRITICAL_FROM_ISR(save_status);
+
+        if( xSchedulerRunning != pdFALSE )
+        {
+            /* Reset the next expected unblock time in case it referred to the
+             * task that is now in the Suspended state. */
+            save_status=taskENTER_CRITICAL_FROM_ISR();
+            {
+                prvResetNextTaskUnblockTime();
+            }
+            taskEXIT_CRITICAL_FROM_ISR(save_status);
         }
         else
         {
@@ -5519,7 +5626,7 @@ static void prvAddCurrentTaskToDelayedList( TickType_t xTicksToWait,
 #endif /* if ( configINCLUDE_FREERTOS_TASK_C_ADDITIONS_H == 1 ) */
 
 //TODO: [HIGH] spostare tutte le definizioni di funzioni di rilascio qui dentro
-//TODO: [HIGH] discutere se usare configASSERT o ritornare pdFALSE in caso di errore
+
 #if (configUSE_REDUNDANT_TASK == 1)
 
     BaseType_t xSetCommitFunction(TaskHandle_t task, void (*pxCommitFunction)(void*), void* pxCommitFunctionArgs){
@@ -5580,7 +5687,7 @@ static void prvAddCurrentTaskToDelayedList( TickType_t xTicksToWait,
 
 /**
  * Delete task and related validation task. 
- * 
+ * //TODO: [MEDIUM] [redundantDelete] fix with new controls (assert, isRedundantTask etc)
 */
 void taskDeleteRedundant(TaskHandle_t task) {
     if(task!=NULL){
@@ -5599,13 +5706,14 @@ void taskDeleteRedundant(TaskHandle_t task) {
     }
 }
 
-//TODO: [CRITICAL] function for task_Suspension when ahead. Must work a new solution for it
-void xCheckAheadTask(){
-    TCB_t * tcb = (TCB_t *)xTaskGetCurrentTaskHandle(); //get the handle of the task that has just been switched in
-    if(tcb->isRedundantTask){                           //check that task is redundant, otherwise checks are not needed
-        if(xTaskAheadStatus((TaskHandle_t)tcb)==1){     //check if the task is one iteration ahead of its validation task
+
+void xSuspendTaskAhead(){
+    TCB_t * tcb = prvGetTCBFromHandle(NULL); //get the handle of the task that has just been switched in
+    if(tcb->isRedundantTask==pdTRUE){     
+                              //check that task is redundant, otherwise checks are not needed
+        if(xTaskAheadStatus()==1){     //check if the task is one iteration ahead of its validation task
             //suspend function
-            vTaskSuspend((TaskHandle_t)tcb);
+            vTaskSuspendContextSwitch();
             }
     }
 }
@@ -5641,21 +5749,19 @@ BaseType_t isValidationTask(TaskHandle_t task) {
  * this function returns 1 if the task is ahead of its validation task, -1 if it is behind and 0 if they are equal.
  * If the task checked is currently running, the resulting value might not be reflective of the reality, depending on
  * when the iterationCounter is updated.
- * //TODO: [MEDIUM] decide the standard for incrementing the iterationCounter.
 */
-BaseType_t xTaskAheadStatus(TaskHandle_t task) {
-    TCB_t *tcb = (TCB_t *)task;
-    if(tcb->iterationCounter>tcb->pxTaskValidation->iterationCounter)
+BaseType_t xTaskAheadStatus() {
+    TCB_t *tcb = prvGetTCBFromHandle(NULL);
+    if(tcb->iterationCounter > tcb->pxTaskValidation->iterationCounter)
     {
         return 1;
     }
-    else if(tcb->iterationCounter<tcb->pxTaskValidation->iterationCounter)
+    else if(tcb->iterationCounter == tcb->pxTaskValidation->iterationCounter)
     {
-        return -1;
-    }
-    else{
         return 0;
     }
+
+    return -1;
 }
 
 /**

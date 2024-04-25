@@ -62,7 +62,7 @@ const osThreadAttr_t taskUtil_attributes = {
 osThreadId_t taskDebugHandle;
 const osThreadAttr_t taskDebug_attributes = {
   .name = "taskDebug",
-  .stack_size = 128 * 4,
+  .stack_size = 700 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
 /* USER CODE BEGIN PV */
@@ -347,7 +347,7 @@ void TheTaskBody(void *argument)
   /* Infinite loop */
   for(;;)
   {
-    if (counter == 10  && isValidationTask(xTaskGetCurrentTaskHandle())){ //print taskList periodically, check validationTask to avoid double printing
+    if (counter == 8  && isValidationTask(xTaskGetCurrentTaskHandle())){ //print taskList periodically, check validationTask to avoid double printing
     	printTaskList();
     }
     
@@ -359,8 +359,8 @@ void TheTaskBody(void *argument)
     	//printf("Switching led off\n");
     }
     HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
-    if(!isValidationTask(xTaskGetCurrentTaskHandle())){
 
+    if(!isValidationTask(xTaskGetCurrentTaskHandle())){
     	increaseIterationCounter(xTaskGetCurrentTaskHandle());
     }
     //vTaskGetInfo(NULL, &status, pdFALSE, eInvalid);
@@ -385,10 +385,6 @@ void taskUtilBody(void *argument)
         printf("%s is a validation task\n", pcTaskGetName(utilHandle));
 
         increaseIterationCounter(utilHandle); //manually increase iteration counter until it' correctly implemented
-
-        if(xTaskAheadStatus(utilHandle)){//check if the xTaskAheadStatus function works correctly
-          printf("print if xTaskAheadStatus function correctly\n");
-        }
       }
       else{
         printf("%s is not a validation task\n", pcTaskGetName(utilHandle));
@@ -406,7 +402,7 @@ void taskDebugBody(void *argument)
   int counter = 1;
   for(;;)
   {
-    printf("debug, %d\n", counter);
+    
     if(counter == 5){
       TaskHandle_t utilHandle= xTaskGetHandle("taskUtil");
       if(utilHandle != NULL){

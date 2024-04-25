@@ -360,13 +360,7 @@ typedef enum
                             UBaseType_t uxPriority,
                             TaskHandle_t * const pxCreatedTask ) PRIVILEGED_FUNCTION;
     
-    //TODO: [MEDIUM] [GtaskCreate] remove this signature ?
-    BaseType_t GtaskCreate( TaskFunction_t pxTaskCode,
-                        const char * const pcName, /*lint !e971 Unqualified char types are allowed for strings and single characters only. */
-                        const configSTACK_DEPTH_TYPE usStackDepth,
-                        void * const pvParameters,
-                        UBaseType_t uxPriority,
-                        TaskHandle_t * const pxCreatedTask ) PRIVILEGED_FUNCTION;
+
 #endif
 
 /**
@@ -3171,15 +3165,31 @@ void vTaskInternalSetTimeOutState( TimeOut_t * const pxTimeOut ) PRIVILEGED_FUNC
     */
     void* xGetInput(TaskHandle_t task);
 
+    /*
+    * Suspends a task from an ISR context. 
+    * The suspended task is the one that is currently running.
+    */
+    void vTaskSuspendContextSwitch();
+
+    /*
+     * Function called in traceTASK_SWITCHED_IN(), suspends task if redundant and 1 iteration ahead of validation
+    */
+    void xSuspendTaskAhead();
+
+    /*
+     * Returns 1 when task is 1 iteration ahead of validation
+     * Returns 0 when task is currently at the same iteration of validation
+     * Returns -1 when task is 1 iteration behind validation
+    */
+    BaseType_t xTaskAheadStatus();
 #endif
 
 void taskDeleteRedundant(TaskHandle_t task); //delete task and associated validation and SUS task (if present)
-void xCheckAheadTask();
+
 //UTILS
 
 //TODO: [DEBUG] eliminate utils before release
 void printTaskList();
 BaseType_t isValidationTask(TaskHandle_t task);
-BaseType_t xTaskAheadStatus(TaskHandle_t task);
 void increaseIterationCounter(TaskHandle_t task);
 void compareTaskStack(TaskHandle_t task);
