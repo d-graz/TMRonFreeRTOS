@@ -359,6 +359,10 @@ void TheTaskBody(void *argument)
     	//printf("Switching led off\n");
     }
     HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
+    if(!isValidationTask(xTaskGetCurrentTaskHandle())){
+
+    	increaseIterationCounter(xTaskGetCurrentTaskHandle());
+    }
     //vTaskGetInfo(NULL, &status, pdFALSE, eInvalid);
     //printf("Task %s at cycle %lu\n", status.pcTaskName, counter);
     //currentTaskHandle = xTaskGetCurrentTaskHandle();
@@ -382,8 +386,8 @@ void taskUtilBody(void *argument)
 
         increaseIterationCounter(utilHandle); //manually increase iteration counter until it' correctly implemented
 
-        if(isTaskAhead(utilHandle)){//check if the isTaskAhead function works correctly
-          printf("print if isTaskAhead function correctly\n");
+        if(xTaskAheadStatus(utilHandle)){//check if the xTaskAheadStatus function works correctly
+          printf("print if xTaskAheadStatus function correctly\n");
         }
       }
       else{

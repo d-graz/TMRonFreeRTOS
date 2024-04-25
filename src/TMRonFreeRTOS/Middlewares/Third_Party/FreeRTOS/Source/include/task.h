@@ -3174,12 +3174,12 @@ void vTaskInternalSetTimeOutState( TimeOut_t * const pxTimeOut ) PRIVILEGED_FUNC
 #endif
 
 void taskDeleteRedundant(TaskHandle_t task); //delete task and associated validation and SUS task (if present)
-
+void xCheckAheadTask();
 //UTILS
 
 //TODO: [DEBUG] eliminate utils before release
 void printTaskList();
 BaseType_t isValidationTask(TaskHandle_t task);
-BaseType_t isTaskAhead(TaskHandle_t task);
+BaseType_t xTaskAheadStatus(TaskHandle_t task);
 void increaseIterationCounter(TaskHandle_t task);
 void compareTaskStack(TaskHandle_t task);

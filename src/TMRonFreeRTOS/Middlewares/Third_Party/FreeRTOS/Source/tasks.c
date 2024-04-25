@@ -62,6 +62,7 @@
 //TODO: [DEBUG] remove before publishings
 #define TASK_LIST_BUFFER_SIZE 500
 
+
 #if ( configUSE_PREEMPTION == 0 )
 
 /* If the cooperative scheduler is being used then a yield should not be
@@ -768,15 +769,9 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB ) PRIVILEGED_FUNCTION;
             // linking the validation task to the original task
             TCB_t * tcb_createdTask = (TCB_t *) *pxCreatedTask;
             TCB_t * tcb_createdTask_vd = (TCB_t *) createdTask_vd;
-
             tcb_createdTask->pxTaskValidation = tcb_createdTask_vd;
-            tcb_createdTask->pxTaskSUS = NULL;
-            tcb_createdTask->iterationCounter = 0;
-
             tcb_createdTask_vd->pxTaskValidation = tcb_createdTask;
-            tcb_createdTask_vd->pxTaskSUS = NULL;
-            tcb_createdTask_vd->iterationCounter = 0;
-
+            
             return xReturn;
 
         }
@@ -871,6 +866,11 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB ) PRIVILEGED_FUNCTION;
         {
             xReturn = errCOULD_NOT_ALLOCATE_REQUIRED_MEMORY;
         }
+        
+        pxNewTCB->isRedundantTask = pdFALSE;
+        
+
+       
 
         return xReturn;
     }
@@ -1085,8 +1085,21 @@ static void prvInitialiseNewTask( TaskFunction_t pxTaskCode,
     {
         mtCOVERAGE_TEST_MARKER();
     }
-    pxNewTCB->pxTaskValidation = NULL;
-    pxNewTCB->pxTaskSUS = NULL;
+    
+    pxNewTCB->isRedundantTask = pdFALSE;
+
+    // Redundant task initialization
+    #if (configUSE_REDUNDANT_TASK==1)
+        pxNewTCB->pxTaskValidation = NULL;
+        pxNewTCB->pxTaskSUS = NULL;
+        pxNewTCB->iterationCounter = 0;
+        pxNewTCB->pxCommitFunction = NULL;
+        pxNewTCB->pxCommitFunctionParameter = NULL;
+        pxNewTCB->pxInputStruct = NULL;
+        pxNewTCB->uInputStructSize = 0;
+        pxNewTCB->pxOutputStruct = NULL;
+        pxNewTCB->uOutputStructSize = 0;
+    #endif
 }
 /*-----------------------------------------------------------*/
 
@@ -5586,6 +5599,17 @@ void taskDeleteRedundant(TaskHandle_t task) {
     }
 }
 
+//TODO: [CRITICAL] function for task_Suspension when ahead. Must work a new solution for it
+void xCheckAheadTask(){
+    TCB_t * tcb = (TCB_t *)xTaskGetCurrentTaskHandle(); //get the handle of the task that has just been switched in
+    if(tcb->isRedundantTask){                           //check that task is redundant, otherwise checks are not needed
+        if(xTaskAheadStatus((TaskHandle_t)tcb)==1){     //check if the task is one iteration ahead of its validation task
+            //suspend function
+            vTaskSuspend((TaskHandle_t)tcb);
+            }
+    }
+}
+
 // UTILS AND DEBUGGING BELOW
 // TODO: [DEBUG] remove the code below before publishing
 
@@ -5619,7 +5643,7 @@ BaseType_t isValidationTask(TaskHandle_t task) {
  * when the iterationCounter is updated.
  * //TODO: [MEDIUM] decide the standard for incrementing the iterationCounter.
 */
-BaseType_t isTaskAhead(TaskHandle_t task) {
+BaseType_t xTaskAheadStatus(TaskHandle_t task) {
     TCB_t *tcb = (TCB_t *)task;
     if(tcb->iterationCounter>tcb->pxTaskValidation->iterationCounter)
     {

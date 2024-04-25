@@ -412,6 +412,7 @@
 
 /* Called after a task has been selected to run.  pxCurrentTCB holds a pointer
  * to the task control block of the selected task. */
+    
     #define traceTASK_SWITCHED_IN() //TODO: [CRITICAL] [traceTASK_SWITCHED_IN] Implement a function that checks if the task (redundant) is to ahead in respect to the validation one, if so freezes it and changes to other task
 #endif
 
@@ -1307,10 +1308,17 @@ typedef struct xSTATIC_TCB
     #if ( configUSE_POSIX_ERRNO == 1 )
         int iDummy22;
     #endif
+    BaseType_t lDummy23; //boolean for redundant check
     #if ( configUSE_REDUNDANT_TASK == 1)
-        struct xSTATIC_TCB * pxDummy23; // Pointer to the validation task.
-        struct xSTATIC_TCB * pxDummy24; // Pointer to the suspended task.
-        uint64_t ullDummy25;            // Iteration counter.
+        struct xSTATIC_TCB * pxDummy24; // Pointer to the validation task.
+        struct xSTATIC_TCB * pxDummy25; // Pointer to the suspended task.
+        uint64_t ullDummy26;            // Iteration counter.
+        void (*pxDummy27)(void*);               /*< Used for the commit function of the task. */
+        void *pxDummy28;               /*< Used for the parameter of the commit function of the task. */
+        void * pxDummy29;                          /*< Used for the input structure of the task. */
+        UBaseType_t ulDummy30;                  /*< Used for the size of the input structure of the task. */
+        void * pxDummy31;                         /*< Used for the output structure of the task. */
+        UBaseType_t ulDummy32;                 /*< Used for the size of the output structure of the task. */
     #endif
 } StaticTask_t;
 
