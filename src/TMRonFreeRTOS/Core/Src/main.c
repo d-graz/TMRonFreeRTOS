@@ -17,6 +17,7 @@
   */
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
+#define __DEBUG__
 #include "main.h"
 #include "cmsis_os.h"
 
@@ -33,7 +34,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define __DEBUG__
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
