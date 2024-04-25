@@ -325,7 +325,6 @@ typedef struct tskTaskControlBlock       /* The old naming convention is used to
     #endif
 
     BaseType_t isRedundantTask; /*< The type of the task. */
-    //TODO: [CRITICAL] [TCB_t] modificare dove dovuto il fatto che alla creazione di default ogni task è non ridondante
 
     #if (configUSE_REDUNDANT_TASK == 1)
         struct tskTaskControlBlock * pxTaskValidation; /*< Used for validation of the TCB. */
@@ -1294,6 +1293,7 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB )
 
 #if ( INCLUDE_xTaskDelayUntil == 1 )
 
+    //TODO: [CRITICAL] [xTaskDelayUntil] modificare come vTaskDelay
     BaseType_t xTaskDelayUntil( TickType_t * const pxPreviousWakeTime,
                                 const TickType_t xTimeIncrement )
     {
@@ -1381,15 +1381,23 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB )
 
 #if ( INCLUDE_vTaskDelay == 1 )
 
-    //TODO: [CRITICAL] [vTaskDelay] modificare
-    /*
-    - bisogna aumentare il valore di iterationCounter
-    - se i valori combaciano si fa un controllo
-    */
+    
+    
     void vTaskDelay( const TickType_t xTicksToDelay )
     {
         BaseType_t xAlreadyYielded = pdFALSE;
+        TCB_t * pxTCB=prvGetTCBFromHandle(NULL);
 
+        if(pxTCB->isRedundantTask==pdTRUE){
+        
+        //TODO: [CRITICAL] [vTaskDelay] modificare
+        /*
+        - bisogna aumentare il valore di iterationCounter
+        - se i valori combaciano si fa un controllo
+        - resume suspended task if it was ahead
+        */
+        
+        }
         /* A delay time of zero just forces a reschedule. */
         if( xTicksToDelay > ( TickType_t ) 0U )
         {
@@ -1760,8 +1768,7 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB )
 
     //TODO: [CRITICAL] [vTaskSuspend] modificare
     /*
-    - modificare che se il chiamante è il task corrente allora si sospende solo lei
-    - se il chiamante è un task diverso allora sospende il task e anche gli altri task di validazione e sus
+    - vTaskSuspend va chiamata per 2 tasks (se è ridondante). Deve essere committata.
     */
     void vTaskSuspend( TaskHandle_t xTaskToSuspend )
     {
@@ -2019,6 +2026,7 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB )
 
 #if ( INCLUDE_vTaskSuspend == 1 )
 
+    //TODO: [CRITICAL] [vTaskResume] modificare 
     void vTaskResume( TaskHandle_t xTaskToResume )
     {
         TCB_t * const pxTCB = xTaskToResume;
@@ -5625,7 +5633,7 @@ static void prvAddCurrentTaskToDelayedList( TickType_t xTicksToWait,
 
 #endif /* if ( configINCLUDE_FREERTOS_TASK_C_ADDITIONS_H == 1 ) */
 
-//TODO: [HIGH] spostare tutte le definizioni di funzioni di rilascio qui dentro
+
 
 #if (configUSE_REDUNDANT_TASK == 1)
 
