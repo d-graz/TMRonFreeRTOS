@@ -1148,9 +1148,6 @@
     #define configUSE_REDUNDANT_TASK    0
 #endif
 
-//TODO: [RICK] [LEGGI] ho messo questo blocco per controllare che tutti i settings che ci servono siano presenti
-// per esempio nella xTaskCreateRedundant si chima la xTaskCreate che è disponibile solo se configSUPPORT_DYNAMIC_ALLOCATION == 1
-// così facendo si possono spostare (cosa che ho fatto, ho spostato xTaskCreateRedundant) tutte le nostre funzioni alla fine del file (dentro #if configUSE_REDUNDANT_TASK == 1)
 /* Checking necessary dependencies to use redundancy*/
 #if (configUSE_REDUNDANT_TASK == 1)
     #if (configSUPPORT_DYNAMIC_ALLOCATION == 0)

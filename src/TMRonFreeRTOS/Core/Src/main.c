@@ -63,7 +63,7 @@ const osThreadAttr_t taskUtil_attributes = {
 osThreadId_t taskDebugHandle;
 const osThreadAttr_t taskDebug_attributes = {
   .name = "taskDebug",
-  .stack_size = 700 * 4,
+  .stack_size = 128 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
 /* USER CODE BEGIN PV */
@@ -348,7 +348,7 @@ void TheTaskBody(void *argument)
   /* Infinite loop */
   for(;;)
   {
-    if (counter == 8  && isValidationTask(xTaskGetCurrentTaskHandle())){ //print taskList periodically, check validationTask to avoid double printing
+    if (isValidationTask(xTaskGetCurrentTaskHandle())){ //print taskList periodically, check validationTask to avoid double printing
     	printTaskList();
     }
     
@@ -361,15 +361,12 @@ void TheTaskBody(void *argument)
     }
     HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
 
-    if(!isValidationTask(xTaskGetCurrentTaskHandle())){
-    	increaseIterationCounter(xTaskGetCurrentTaskHandle());
-    }
     //vTaskGetInfo(NULL, &status, pdFALSE, eInvalid);
     //printf("Task %s at cycle %lu\n", status.pcTaskName, counter);
     //currentTaskHandle = xTaskGetCurrentTaskHandle();
     //compareTaskStack(currentTaskHandle);
     counter++;
-    osDelay(5000);
+    osDelay(10000);
   }
   /* USER CODE END TheTaskBody */
 }
@@ -379,38 +376,44 @@ void taskUtilBody(void *argument)
   int counter = 1;
   for(;;)
   {
-    printf("util %d\n", counter);
-    if(counter==3){
-      TaskHandle_t utilHandle= xTaskGetCurrentTaskHandle();
-      if(isValidationTask(utilHandle)){//check if the isValidationTask function works correctly
-        printf("%s is a validation task\n", pcTaskGetName(utilHandle));
-
-        increaseIterationCounter(utilHandle); //manually increase iteration counter until it' correctly implemented
-      }
-      else{
-        printf("%s is not a validation task\n", pcTaskGetName(utilHandle));
-      }
-    }
-    
+    printf("util %d\n\n", counter);
     counter++;
-    osDelay(6000);
+    osDelay(3000);
   }
 }
 
+/*
+* At the moment, the DebugTask will suspend the util task (and validation), then resume them, then delete them
+* The "TheTask" will print the task list every 10 seconds, and toggle the LED (should not be visibile)
+* The "util" task will print a message every 3 seconds, which is duplicated by its validation
+*/
 void taskDebugBody(void *argument)
 {
-  printf("at iteration 5, task Util and task Util_vd will be deleted\n"); //print information about check
+  printf("read taskDebugBody to understand whats being printed\n\n"); //print information about check
   int counter = 1;
   for(;;)
   {
     
-    if(counter == 5){
+    if(counter == 17){
       TaskHandle_t utilHandle= xTaskGetHandle("taskUtil");
       if(utilHandle != NULL){
-        taskDeleteRedundant(utilHandle);} //check if the taskDeleteRedundant function works correctly
+        printf("Deleting Task\n\n");
+        vTaskDelete(utilHandle);} //check if the vTaskDelete function works correctly
+    }
+    else if(counter == 3){
+      TaskHandle_t utilHandle= xTaskGetHandle("taskUtil_vd");
+      if(utilHandle != NULL){
+        printf("suspending Task \n\n");
+        vTaskSuspend(utilHandle);} //check if the vTaskDelete function works correctly
+    }
+    else if(counter== 10){
+      TaskHandle_t utilHandle= xTaskGetHandle("taskUtil_vd");
+      if(utilHandle != NULL){
+        printf("Resuming Task \n\n");
+        vTaskResume(utilHandle);}
     }
     counter++;
-    osDelay(3000);
+    osDelay(4000);
   }
 }
 /**

@@ -578,9 +578,6 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB ) PRIVILEGED_FUNCTION;
 #endif
 
 // Internal function definition
-//TODO: [RICK] [LEGGI] questa zona serve a dichiarare tutte le funzioni che noi usiamo ma internamente a FreeRTOS
-// per esempio in task.h TCB_t non è definito perchè è interno, quindi bisogna avere uno spazio come questo dove definire
-// le funzioni che usiamo internamente
 #if( configUSE_REDUNDANT_TASK == 1 )
 
     /**
@@ -596,7 +593,14 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB ) PRIVILEGED_FUNCTION;
  * Original vTaskDelete function
 */
 void oTaskDelete( TCB_t * xTCBToDelete ) PRIVILEGED_FUNCTION;
-
+/*
+ * Original vTaskSuspend function
+*/
+void oTaskSuspend( TaskHandle_t xTaskToSuspend ) PRIVILEGED_FUNCTION;
+/*
+ * Original vTaskResume function
+*/
+void oTaskResume( TCB_t* xTaskToResume ) PRIVILEGED_FUNCTION;
 /*-----------------------------------------------------------*/
 
 #if ( configSUPPORT_STATIC_ALLOCATION == 1 )
@@ -1401,29 +1405,31 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB )
             if(pxTCB->isRedundantTask==pdTRUE){
 
                 taskENTER_CRITICAL();
-
+                
                 //increase the iteration counter
-                pxTCB->iterationCounter++;
+                    //pxTCB->iterationCounter++;
 
-                // check if the task and it's own validation are at the same execution point
-                if (xTaskAheadStatus() == 0){
-                    #ifdef __DEBUG__
-                        printf("Task %s is a the same point of execution of %s\n", pxTCB->pcTaskName, pxTCB->pxTaskValidation->pcTaskName);
-                    #endif
-                    BaseType_t xReturn;
-                    xReturn = compareZone(pxTCB->pxOutputStruct, pxTCB->pxTaskValidation->pxOutputStruct, pxTCB->uOutputStructSize);
-                    if(xReturn == pdFAIL) {
+                    // check if the task and it's own validation are at the same execution point
+                    if (xTaskAheadStatus() == 0){
                         #ifdef __DEBUG__
-                            printf("Failed to confront output of tasks\n");
+                            printf("Task %s is a the same point of execution of %s\n", pxTCB->pcTaskName, pxTCB->pxTaskValidation->pcTaskName);
                         #endif
-                        //TODO: [CRITCAL] [vTaskDelay] implement spawn of task and other recovery logic
+                        BaseType_t xReturn;
+                        xReturn = compareZone(pxTCB->pxOutputStruct, pxTCB->pxTaskValidation->pxOutputStruct, pxTCB->uOutputStructSize);
+                        if(xReturn == pdFAIL) {
+                            #ifdef __DEBUG__
+                                printf("Failed to confront output of tasks\n");
+                            #endif
+                            //TODO: [CRITCAL] [vTaskDelay] implement spawn of task and other recovery logic
+                        }
+                        #ifdef __DEBUG__
+                        else {
+                            printf("Output of tasks are the same\n");
+                        }
+                        #endif
                     }
-                    #ifdef __DEBUG__
-                    else {
-                        printf("Output of tasks are the same\n");
-                    }
-                    #endif
-                }
+                
+                taskEXIT_CRITICAL();
             }
         #endif
         /* A delay time of zero just forces a reschedule. */
@@ -1794,11 +1800,36 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB )
 
 #if ( INCLUDE_vTaskSuspend == 1 )
 
-    //TODO: [CRITICAL] [vTaskSuspend] modificare
-    /*
-    - vTaskSuspend va chiamata per 2 tasks (se è ridondante). Deve essere committata.
-    */
     void vTaskSuspend( TaskHandle_t xTaskToSuspend )
+    {
+       //get the TCB from the handle
+        TCB_t * pxTCB;
+        pxTCB = prvGetTCBFromHandle( xTaskToSuspend );
+
+        taskENTER_CRITICAL();
+
+        /* If the task is not redundant just suspend it
+         * Otherwise, suspend also the validation and the control task (if present)
+        */
+        if(pxTCB->isRedundantTask == pdFALSE){
+            oTaskSuspend(pxTCB);
+        } else {
+            //suspend the validation task
+            if(pxTCB->pxTaskValidation != NULL){
+                oTaskSuspend(pxTCB->pxTaskValidation);
+            }
+            //suspend the control task
+            if(pxTCB->pxTaskSUS != NULL){
+                oTaskSuspend(pxTCB->pxTaskSUS);
+            }
+            //suspend the task
+            oTaskSuspend(pxTCB);
+        }
+        
+        taskEXIT_CRITICAL(); 
+    }
+
+    void oTaskSuspend(TCB_t* xTaskToSuspend)
     {
         TCB_t * pxTCB;
 
@@ -2054,8 +2085,37 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB )
 
 #if ( INCLUDE_vTaskSuspend == 1 )
 
-    //TODO: [CRITICAL] [vTaskResume] modificare 
-    void vTaskResume( TaskHandle_t xTaskToResume )
+    void vTaskResume( TaskHandle_t xTaskToSuspend )
+    {
+       //get the TCB from the handle
+        TCB_t * pxTCB;
+        pxTCB = prvGetTCBFromHandle( xTaskToSuspend );
+
+        taskENTER_CRITICAL();
+
+        /* Resume the task if not redundant
+         * If redundant, resume also validation and SuS task (if present)
+        */
+        if(pxTCB->isRedundantTask == pdFALSE){
+            oTaskResume(pxTCB);
+        } else {
+            //resume the validation task
+            if(pxTCB->pxTaskValidation != NULL){
+                oTaskResume(pxTCB->pxTaskValidation);
+            }
+            //Resume the control task
+            if(pxTCB->pxTaskSUS != NULL){
+                oTaskResume(pxTCB->pxTaskSUS);
+            }
+            //Resume the task
+            oTaskResume(pxTCB);
+        }
+        taskEXIT_CRITICAL(); 
+    }
+    /*
+    * Resume a task
+    */ 
+    void oTaskResume( TCB_t* xTaskToResume )
     {
         TCB_t * const pxTCB = xTaskToResume;
 
