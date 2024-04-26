@@ -338,6 +338,7 @@ typedef struct tskTaskControlBlock       /* The old naming convention is used to
         UBaseType_t uOutputStructSize;                 /*< Used for the size of the output structure of the task. */
     #endif
 } tskTCB;
+//TODO: [CRITICAL] [TCB_t] aggiungere solo un puntatore ad una struct in più di input che rappresenta l'input a t-1 (o t-2) (ne derivano i cambiament in prvInitialiseNewTask(credo) e nel header file)
 
 /* The old tskTCB name is maintained above then typedefed to the new TCB_t name
  * below to enable the use of older kernel aware debuggers. */
@@ -576,6 +577,26 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB ) PRIVILEGED_FUNCTION;
 
 #endif
 
+// Internal function definition
+//TODO: [RICK] [LEGGI] questa zona serve a dichiarare tutte le funzioni che noi usiamo ma internamente a FreeRTOS
+// per esempio in task.h TCB_t non è definito perchè è interno, quindi bisogna avere uno spazio come questo dove definire
+// le funzioni che usiamo internamente
+#if( configUSE_REDUNDANT_TASK == 1 )
+
+    /**
+     * Function that compares 2 zones of memory
+    */
+    BaseType_t compareZone( void *pxStruct1, void* pxStruct2, UBaseType_t uStructSize );
+#endif
+//Per esempio qui ho messo oTaskDelete fuori dal #if perchè è una funzione che usiamo internamente
+// ma deve essere disponibile anche se per esempio noi non vogliamo usare redundancy at all (configUSE_REDUNDANT_TASK == 0)
+// essendo questa la vecchia vTaskDelete
+//TODO: [MEDIUM] [oTaskDelete] move this inside correct #if structure (the same as vTaskDelete)
+/*
+ * Original vTaskDelete function
+*/
+void oTaskDelete( TCB_t * xTCBToDelete ) PRIVILEGED_FUNCTION;
+
 /*-----------------------------------------------------------*/
 
 #if ( configSUPPORT_STATIC_ALLOCATION == 1 )
@@ -736,49 +757,6 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB ) PRIVILEGED_FUNCTION;
 /*-----------------------------------------------------------*/
 
 #if ( configSUPPORT_DYNAMIC_ALLOCATION == 1 )
-
-    #if ( configUSE_REDUNDANT_TASK == 1 )
-
-        BaseType_t xTaskCreateRedundant( TaskFunction_t pxTaskCode,
-                                const char * const pcName, /*lint !e971 Unqualified char types are allowed for strings and single characters only. */
-                                const configSTACK_DEPTH_TYPE usStackDepth,
-                                void * const pvParameters,
-                                UBaseType_t uxPriority,
-                                TaskHandle_t * const pxCreatedTask )
-        {
-            BaseType_t xReturn;
-            xReturn = xTaskCreate( pxTaskCode, pcName, usStackDepth, pvParameters, uxPriority, pxCreatedTask );
-            if (xReturn != pdPASS){
-                xReturn = pdFAIL;
-                return xReturn;
-            }
-            //FIXME: [LOW] possible buffer overflow if pcName is too long
-            char pcName_vd[configMAX_TASK_NAME_LEN];
-            sprintf(pcName_vd, "%s_vd", pcName);
-
-            // create a new handle for the validation task
-            TaskHandle_t createdTask_vd = NULL;
-            xReturn = xTaskCreate( pxTaskCode, pcName_vd, usStackDepth, pvParameters, uxPriority, &createdTask_vd );
-            if (xReturn != pdPASS){
-                xReturn = pdFAIL;
-                // TODO: [CRITICAL] [xTaskCreateRedundant] delete the first task created if the second one fails upon creation
-                return xReturn;
-            }
-
-            // linking the validation task to the original task
-            TCB_t * tcb_createdTask = (TCB_t *) *pxCreatedTask;
-            TCB_t * tcb_createdTask_vd = (TCB_t *) createdTask_vd;
-            tcb_createdTask->pxTaskValidation = tcb_createdTask_vd;
-            tcb_createdTask_vd->pxTaskValidation = tcb_createdTask;
-            //setting task to be redundant
-            tcb_createdTask->isRedundantTask=pdTRUE;
-            tcb_createdTask_vd->isRedundantTask=pdTRUE;
-            
-            return xReturn;
-
-        }
-
-    #endif
 
     BaseType_t xTaskCreate( TaskFunction_t pxTaskCode,
                             const char * const pcName, /*lint !e971 Unqualified char types are allowed for strings and single characters only. */
@@ -1192,14 +1170,43 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB )
 #if ( INCLUDE_vTaskDelete == 1 )
 
     void vTaskDelete( TaskHandle_t xTaskToDelete )
+    {   
+        //get the TCB from the handle
+        TCB_t * pxTCB;
+        pxTCB = prvGetTCBFromHandle( xTaskToDelete );
+
+        taskENTER_CRITICAL();
+
+        /* If the task is not redundant just delete it
+         * Otherwise, delete also the validation and the control task (if present)
+        */
+        if(pxTCB->isRedundantTask == pdFALSE){
+            oTaskDelete(pxTCB);
+        } else {
+            //delete the validation task
+            if(pxTCB->pxTaskValidation != NULL){
+                oTaskDelete(pxTCB->pxTaskValidation);
+            }
+            //delete the control task
+            if(pxTCB->pxTaskSUS != NULL){
+                oTaskDelete(pxTCB->pxTaskSUS);
+            }
+            //delete the task
+            oTaskDelete(pxTCB);
+        }
+        
+        taskEXIT_CRITICAL();
+
+    }
+
+    void oTaskDelete( TCB_t * xTCBToDelete )
     {
         TCB_t * pxTCB;
 
         taskENTER_CRITICAL();
         {
-            /* If null is passed in here then it is the calling task that is
-             * being deleted. */
-            pxTCB = prvGetTCBFromHandle( xTaskToDelete );
+            
+            pxTCB = xTCBToDelete;
 
             /* Remove task from the ready/delayed list. */
             if( uxListRemove( &( pxTCB->xStateListItem ) ) == ( UBaseType_t ) 0 )
@@ -1386,18 +1393,39 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB )
     void vTaskDelay( const TickType_t xTicksToDelay )
     {
         BaseType_t xAlreadyYielded = pdFALSE;
-        TCB_t * pxTCB=prvGetTCBFromHandle(NULL);
 
-        if(pxTCB->isRedundantTask==pdTRUE){
-        
-        //TODO: [CRITICAL] [vTaskDelay] modificare
-        /*
-        - bisogna aumentare il valore di iterationCounter
-        - se i valori combaciano si fa un controllo
-        - resume suspended task if it was ahead
-        */
-        
-        }
+        // do this iff the project uses redundancy
+        #if (configUSE_REDUNDANT_TASK == 1)
+            TCB_t * pxTCB=prvGetTCBFromHandle(NULL);
+
+            if(pxTCB->isRedundantTask==pdTRUE){
+
+                taskENTER_CRITICAL();
+
+                //increase the iteration counter
+                pxTCB->iterationCounter++;
+
+                // check if the task and it's own validation are at the same execution point
+                if (xTaskAheadStatus() == 0){
+                    #ifdef __DEBUG__
+                        printf("Task %s is a the same point of execution of %s\n", pxTCB->pcTaskName, pxTCB->pxTaskValidation->pcTaskName);
+                    #endif
+                    BaseType_t xReturn;
+                    xReturn = compareZone(pxTCB->pxOutputStruct, pxTCB->pxTaskValidation->pxOutputStruct, pxTCB->uOutputStructSize);
+                    if(xReturn == pdFAIL) {
+                        #ifdef __DEBUG__
+                            printf("Failed to confront output of tasks\n");
+                        #endif
+                        //TODO: [CRITCAL] [vTaskDelay] implement spawn of task and other recovery logic
+                    }
+                    #ifdef __DEBUG__
+                    else {
+                        printf("Output of tasks are the same\n");
+                    }
+                    #endif
+                }
+            }
+        #endif
         /* A delay time of zero just forces a reschedule. */
         if( xTicksToDelay > ( TickType_t ) 0U )
         {
@@ -5637,6 +5665,45 @@ static void prvAddCurrentTaskToDelayedList( TickType_t xTicksToWait,
 
 #if (configUSE_REDUNDANT_TASK == 1)
 
+    BaseType_t xTaskCreateRedundant( TaskFunction_t pxTaskCode,
+                            const char * const pcName, /*lint !e971 Unqualified char types are allowed for strings and single characters only. */
+                            const configSTACK_DEPTH_TYPE usStackDepth,
+                            void * const pvParameters,
+                            UBaseType_t uxPriority,
+                            TaskHandle_t * const pxCreatedTask )
+    {
+        BaseType_t xReturn;
+        xReturn = xTaskCreate( pxTaskCode, pcName, usStackDepth, pvParameters, uxPriority, pxCreatedTask );
+        if (xReturn != pdPASS){
+            xReturn = pdFAIL;
+            return xReturn;
+        }
+
+        //FIXME: [LOW] possible buffer overflow if pcName is too long
+        char pcName_vd[configMAX_TASK_NAME_LEN];
+        sprintf(pcName_vd, "%s_vd", pcName);
+        // create a new handle for the validation task
+        TaskHandle_t createdTask_vd = NULL;
+        xReturn = xTaskCreate( pxTaskCode, pcName_vd, usStackDepth, pvParameters, uxPriority, &createdTask_vd );
+        if (xReturn != pdPASS){
+            xReturn = pdFAIL;
+            oTaskDelete((TCB_t *) *pxCreatedTask);
+            return xReturn;
+        }
+
+        // linking the validation task to the original task
+        TCB_t * tcb_createdTask = (TCB_t *) *pxCreatedTask;
+        TCB_t * tcb_createdTask_vd = (TCB_t *) createdTask_vd;
+        tcb_createdTask->pxTaskValidation = tcb_createdTask_vd;
+        tcb_createdTask_vd->pxTaskValidation = tcb_createdTask;
+
+        //setting task to be redundant
+        tcb_createdTask->isRedundantTask=pdTRUE;
+        tcb_createdTask_vd->isRedundantTask=pdTRUE;
+        
+        return xReturn;
+    }
+
     BaseType_t xSetCommitFunction(TaskHandle_t task, void (*pxCommitFunction)(void*), void* pxCommitFunctionArgs){
         TCB_t * tcb;
         tcb = prvGetTCBFromHandle(task);
@@ -5691,11 +5758,50 @@ static void prvAddCurrentTaskToDelayedList( TickType_t xTicksToWait,
         configASSERT(tcb->isRedundantTask == pdTRUE); /* Checks that the task is actually a redundant one*/
         return tcb->pxInputStruct;
     }
+
+    void xSuspendTaskAhead(){
+        //get the handle of the task that has just been switched in
+        TCB_t * tcb = prvGetTCBFromHandle(NULL);
+
+        //check that task is redundant, otherwise checks are not needed
+        if(tcb->isRedundantTask==pdTRUE){
+
+            //check if the task is one iteration ahead of its validation task
+            if(xTaskAheadStatus()==1){
+
+                //suspend function
+                vTaskSuspendContextSwitch();
+            }
+        }
+    }
+
+    BaseType_t xTaskAheadStatus() {
+        TCB_t *tcb = prvGetTCBFromHandle(NULL);
+        if(tcb->iterationCounter > tcb->pxTaskValidation->iterationCounter)
+        {
+            return 1;
+        }
+        else if(tcb->iterationCounter == tcb->pxTaskValidation->iterationCounter)
+        {
+            return 0;
+        }
+
+        return -1;
+    }
+
+    BaseType_t compareZone(void *pxStruct1, void *pxStruct2, UBaseType_t uStructSize) {
+        if (memcmp(pxStruct1, pxStruct2, uStructSize) == 0) {
+            return pdPASS;  // Memory regions are equal
+        } else {
+            return pdFAIL; // Memory regions are not equal
+        }
+    }
+
 #endif
 
 /**
  * Delete task and related validation task. 
- * //TODO: [MEDIUM] [redundantDelete] fix with new controls (assert, isRedundantTask etc)
+ * //TODO: [LOW] [redundantDelete] this should be more an explode than a delete
 */
 void taskDeleteRedundant(TaskHandle_t task) {
     if(task!=NULL){
@@ -5715,16 +5821,7 @@ void taskDeleteRedundant(TaskHandle_t task) {
 }
 
 
-void xSuspendTaskAhead(){
-    TCB_t * tcb = prvGetTCBFromHandle(NULL); //get the handle of the task that has just been switched in
-    if(tcb->isRedundantTask==pdTRUE){     
-                              //check that task is redundant, otherwise checks are not needed
-        if(xTaskAheadStatus()==1){     //check if the task is one iteration ahead of its validation task
-            //suspend function
-            vTaskSuspendContextSwitch();
-            }
-    }
-}
+
 
 // UTILS AND DEBUGGING BELOW
 // TODO: [DEBUG] remove the code below before publishing
@@ -5751,25 +5848,6 @@ BaseType_t isValidationTask(TaskHandle_t task) {
     else{
         return pdFALSE;
     }
-}
-
-/**
- * this function returns 1 if the task is ahead of its validation task, -1 if it is behind and 0 if they are equal.
- * If the task checked is currently running, the resulting value might not be reflective of the reality, depending on
- * when the iterationCounter is updated.
-*/
-BaseType_t xTaskAheadStatus() {
-    TCB_t *tcb = prvGetTCBFromHandle(NULL);
-    if(tcb->iterationCounter > tcb->pxTaskValidation->iterationCounter)
-    {
-        return 1;
-    }
-    else if(tcb->iterationCounter == tcb->pxTaskValidation->iterationCounter)
-    {
-        return 0;
-    }
-
-    return -1;
 }
 
 /**

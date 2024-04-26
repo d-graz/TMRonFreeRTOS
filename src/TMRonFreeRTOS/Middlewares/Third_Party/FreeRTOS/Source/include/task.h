@@ -741,7 +741,6 @@ void vTaskAllocateMPURegions( TaskHandle_t xTask,
  * \defgroup vTaskDelete vTaskDelete
  * \ingroup Tasks
  */
-//TODO: [CRITICAL] [vTaskDelete] modificare
 void vTaskDelete( TaskHandle_t xTaskToDelete ) PRIVILEGED_FUNCTION;
 
 /*-----------------------------------------------------------
@@ -796,7 +795,6 @@ void vTaskDelete( TaskHandle_t xTaskToDelete ) PRIVILEGED_FUNCTION;
  * \defgroup vTaskDelay vTaskDelay
  * \ingroup TaskCtrl
  */
-//TODO: [CRITICAL] [vTaskDelay] modificare
 void vTaskDelay( const TickType_t xTicksToDelay ) PRIVILEGED_FUNCTION;
 
 /**
@@ -864,7 +862,6 @@ void vTaskDelay( const TickType_t xTicksToDelay ) PRIVILEGED_FUNCTION;
  * \defgroup xTaskDelayUntil xTaskDelayUntil
  * \ingroup TaskCtrl
  */
-//TODO: [CRITICAL] [xTaskDelayUntil] modificare
 BaseType_t xTaskDelayUntil( TickType_t * const pxPreviousWakeTime,
                             const TickType_t xTimeIncrement ) PRIVILEGED_FUNCTION;
 
@@ -3202,6 +3199,7 @@ void vTaskInternalSetTimeOutState( TimeOut_t * const pxTimeOut ) PRIVILEGED_FUNC
     * Suspends a task from an ISR context. 
     * The suspended task is the one that is currently running.
     */
+    //TODO: [LOW] [vTaskSuspendContextSwitch] move this to correct #if enclosure
     void vTaskSuspendContextSwitch();
 
     /*
@@ -3214,7 +3212,9 @@ void vTaskInternalSetTimeOutState( TimeOut_t * const pxTimeOut ) PRIVILEGED_FUNC
      * Returns 0 when task is currently at the same iteration of validation
      * Returns -1 when task is 1 iteration behind validation
     */
+   //TODO: [LOW] [xTaskAheadStatus] idea: modificare questa funzione che ti ritorna 1 se il task è avanti o indietro e 0 se sono pari (bisogna vedere se può funzionare)
     BaseType_t xTaskAheadStatus();
+
 #endif
 
 void taskDeleteRedundant(TaskHandle_t task); //delete task and associated validation and SUS task (if present)
