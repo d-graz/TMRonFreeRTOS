@@ -337,6 +337,9 @@ typedef struct tskTaskControlBlock       /* The old naming convention is used to
         void * pxOutputStruct;                         /*< Used for the output structure of the task. */
         UBaseType_t uOutputStructSize;                 /*< Used for the size of the output structure of the task. */
         BaseType_t isRecoveryProcess;                  /*< Used for the recovery process of the task. */
+        TaskFunction_t taskCode;                       /*< Used for the task code of the task. */
+        uint32_t stackDepth;                           /*< Used for the stack depth of the task. */
+        void * pvParameters;                           /*< Used for the parameters of the task. */
     #endif
 
 } tskTCB;
@@ -1065,6 +1068,9 @@ static void prvInitialiseNewTask( TaskFunction_t pxTaskCode,
         pxNewTCB->uOutputStructSize = 0;
         pxNewTCB->pxPreviousInputStruct = NULL;
         pxNewTCB->isRecoveryProcess = pdFALSE;
+        pxNewTCB->taskCode = pxTaskCode;
+        pxNewTCB->stackDepth = ulStackDepth;
+        pxNewTCB->pvParameters = pvParameters;
     #endif
 }
 /*-----------------------------------------------------------*/
@@ -1415,7 +1421,56 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB )
                             #ifdef __DEBUG__
                                 printf("Failed to confront output of tasks\n");
                             #endif
+                            TaskHandle_t xTaskRecoveryHandle; //spawn handle that will be used to spawn taskSuS
+                            TCB_t * pxTaskRecovery;
+                            xReturn = compareZone(pxTCB->pxInputStruct, pxTCB->pxTaskValidation->pxInputStruct, pxTCB->uInputStructSize); //compare input at current iteration
+                            if( xReturn == pdFAIL){
+                                #ifdef __DEBUG__
+                                    printf("Failed to confront iteration-1 input of tasks\n");
+                                #endif
+                            //input at iteration-1 must be checked
+                            }
+                            else{
+                                #ifdef __DEBUG__
+                                    printf("starting recovery process\n\n");
+                                #endif
+                                //TODO: [LOW] [vTaskDelay] change name to be task specific 
+                                //TODO: [MEDIUM] [vTaskDelay] handle failure of taskSUS creation
+
+                                //Create recovery task, initialize it correctly 
+                                xTaskCreate(pxTCB->taskCode, "RecoveryTask", pxTCB->stackDepth, pxTCB->pvParameters, pxTCB->uxPriority, &xTaskRecoveryHandle);
+                                pxTaskRecovery=prvGetTCBFromHandle(xTaskRecoveryHandle);
+                                pxTaskRecovery->isRecoveryProcess=pdTRUE;
+                                pxTaskRecovery->isRedundantTask=pdTRUE;
+                                pxTaskRecovery->pxInputStruct=pxTCB->pxInputStruct;
+                                pxTaskRecovery->uInputStructSize=pxTCB->uInputStructSize;
+                                pxTaskRecovery->pxOutputStruct=pxTCB->pxOutputStruct;
+                                pxTaskRecovery->uOutputStructSize=pxTCB->uOutputStructSize;
+                                pxTaskRecovery->pxPreviousInputStruct=pxTCB->pxPreviousInputStruct; //TODO: [LOW] [vTaskDelay] check if this is necessary
+                                pxTaskRecovery->pxCommitFunction=pxTCB->pxCommitFunction;
+                                pxTaskRecovery->pxCommitFunctionParameter=pxTCB->pxCommitFunctionParameter;
+                                pxTaskRecovery->pxTaskValidation=pxTCB->pxTaskValidation;
+                                pxTaskRecovery->pxTaskSUS=pxTCB; //TODO: [HIGH] [vTaskDelay] decide standard for pointer assignment (evitare di farlo diventare NULL)
+            
+                                pxTaskRecovery->iterationCounter=pxTCB->iterationCounter--;
+
+                                pxTCB->isRecoveryProcess=pdTRUE;
+                                pxTCB->pxTaskValidation->isRecoveryProcess=pdTRUE;
+
+                                pxTCB->pxTaskSUS=pxTaskRecovery;
+                                pxTCB->pxTaskValidation->pxTaskSUS=pxTaskRecovery;
+
+                            }
                             //TODO: [CRITCAL] [vTaskDelay] implement spawn of task and other recovery logic
+                            //set input to previous input
+                            //suspend other tasks
+
+                            //control on next iteration (use isRecoveryProcess flag )
+                            //copy input and output of sus task on recovered task
+                            //delete sus task (no longer needed)
+                            //commit result
+
+                            //resume of other tasks
                         }
                         #ifdef __DEBUG__
                         else {

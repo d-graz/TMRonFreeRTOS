@@ -1317,18 +1317,21 @@ typedef struct xSTATIC_TCB
     #endif
     
     #if ( configUSE_REDUNDANT_TASK == 1)
-        BaseType_t lDummy23;            //boolean for redundant check
-        struct xSTATIC_TCB * pxDummy24; // Pointer to the validation task.
-        struct xSTATIC_TCB * pxDummy25; // Pointer to the suspended task.
-        uint64_t ullDummy26;            // Iteration counter.
-        void (*pxDummy27)(void*);               /*< Used for the commit function of the task. */
-        void *pxDummy28;               /*< Used for the parameter of the commit function of the task. */
-        void * pxDummy29;                          /*< Used for the input structure of the task. */
-        void * pxDummy30;                          /*< Used for the input at t-1 structure of the task. */
-        UBaseType_t ulDummy30;                  /*< Used for the size of the input structure of the task. */
-        void * pxDummy31;                         /*< Used for the output structure of the task. */
-        UBaseType_t ulDummy32;                 /*< Used for the size of the output structure of the task. */
-        BaseType_t lDummy33;                     /*< Used for the task state. */
+        BaseType_t lDummy23;            /*< boolean for redundant check */
+        struct xSTATIC_TCB * pxDummy24; /*< Pointer to the validation task. */
+        struct xSTATIC_TCB * pxDummy25; /*< Pointer to the suspended task. */
+        uint64_t ullDummy26;            /*< Iteration counter. */
+        void (*pxDummy27)(void*);       /*< Used for the commit function of the task. */
+        void *pxDummy28;                /*< Used for the parameter of the commit function of the task. */
+        void * pxDummy29;               /*< Used for the input structure of the task. */
+        void * pxDummy30;               /*< Used for the input at t-1 structure of the task. */
+        UBaseType_t ulDummy30;          /*< Used for the size of the input structure of the task. */
+        void * pxDummy31;               /*< Used for the output structure of the task. */
+        UBaseType_t ulDummy32;          /*< Used for the size of the output structure of the task. */
+        BaseType_t lDummy33;            /*< Used for the task state. */
+        TaskFunction_t pxDummy34;       /*< Used for the task function. */
+        uint32_t ulDummy35;             /*< Used for the stack depth parameter. */
+        void * pxDummy36;               /*< Used for the stack parameters. */
     #endif
 } StaticTask_t;
 
