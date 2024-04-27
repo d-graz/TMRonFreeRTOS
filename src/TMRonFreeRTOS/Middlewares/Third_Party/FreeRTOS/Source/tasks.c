@@ -324,22 +324,22 @@ typedef struct tskTaskControlBlock       /* The old naming convention is used to
         int iTaskErrno;
     #endif
 
-    
-
     #if (configUSE_REDUNDANT_TASK == 1)
+        BaseType_t isRedundantTask;                    /*< The type of the task. */
         struct tskTaskControlBlock * pxTaskValidation; /*< Used for validation of the TCB. */
         struct tskTaskControlBlock * pxTaskSUS;        /*< Used for error correction of the TCB in case of divergent results in the validation task. */
         uint64_t iterationCounter;                     /*< Used for controlling the execution status of the task. */
         void (*pxCommitFunction)(void*);               /*< Used for the commit function of the task. */
         void *pxCommitFunctionParameter;               /*< Used for the parameter of the commit function of the task. */
         void * pxInputStruct;                          /*< Used for the input structure of the task. */
+        void * pxPreviousInputStruct;                  /*< Input at t-1 for task. */
         UBaseType_t uInputStructSize;                  /*< Used for the size of the input structure of the task. */
         void * pxOutputStruct;                         /*< Used for the output structure of the task. */
         UBaseType_t uOutputStructSize;                 /*< Used for the size of the output structure of the task. */
-        BaseType_t isRedundantTask; /*< The type of the task. */
+        BaseType_t isRecoveryProcess;                  /*< Used for the recovery process of the task. */
     #endif
+
 } tskTCB;
-//TODO: [CRITICAL] [TCB_t] aggiungere solo un puntatore ad una struct in più di input che rappresenta l'input a t-1 (o t-2) (ne derivano i cambiament in prvInitialiseNewTask(credo) e nel header file)
 
 /* The old tskTCB name is maintained above then typedefed to the new TCB_t name
  * below to enable the use of older kernel aware debuggers. */
@@ -1078,6 +1078,8 @@ static void prvInitialiseNewTask( TaskFunction_t pxTaskCode,
         pxNewTCB->uInputStructSize = 0;
         pxNewTCB->pxOutputStruct = NULL;
         pxNewTCB->uOutputStructSize = 0;
+        pxNewTCB->pxPreviousInputStruct = NULL;
+        pxNewTCB->isRecoveryProcess = pdFALSE;
     #endif
 }
 /*-----------------------------------------------------------*/
@@ -5804,6 +5806,10 @@ static void prvAddCurrentTaskToDelayedList( TickType_t xTicksToWait,
             tcb->pxInputStruct = pxStruct;
         }
         tcb->uInputStructSize = uxSize;
+        tcb->pxPreviousInputStruct = pvPortMalloc(uxSize);
+        if (tcb->pxPreviousInputStruct == NULL) {
+            return pdFALSE; /* Return pdFALSE if memory allocation failed */
+        }
         return pdTRUE;
     }
 
