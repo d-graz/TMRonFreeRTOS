@@ -586,22 +586,7 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB ) PRIVILEGED_FUNCTION;
     */
     BaseType_t compareZone( void *pxStruct1, void* pxStruct2, UBaseType_t uStructSize );
 #endif
-//Per esempio qui ho messo oTaskDelete fuori dal #if perchè è una funzione che usiamo internamente
-// ma deve essere disponibile anche se per esempio noi non vogliamo usare redundancy at all (configUSE_REDUNDANT_TASK == 0)
-// essendo questa la vecchia vTaskDelete
-//TODO: [MEDIUM] [oTaskDelete] move this inside correct #if structure (the same as vTaskDelete)
-/*
- * Original vTaskDelete function
-*/
-void oTaskDelete( TCB_t * xTCBToDelete ) PRIVILEGED_FUNCTION;
-/*
- * Original vTaskSuspend function
-*/
-void oTaskSuspend( TaskHandle_t xTaskToSuspend ) PRIVILEGED_FUNCTION;
-/*
- * Original vTaskResume function
-*/
-void oTaskResume( TCB_t* xTaskToResume ) PRIVILEGED_FUNCTION;
+
 /*-----------------------------------------------------------*/
 
 #if ( configSUPPORT_STATIC_ALLOCATION == 1 )
@@ -1170,6 +1155,11 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB )
 
 #if ( INCLUDE_vTaskDelete == 1 )
 
+    /*
+     * Original vTaskDelete function
+    */
+    void oTaskDelete( TCB_t * xTCBToDelete ) PRIVILEGED_FUNCTION;
+
     void vTaskDelete( TaskHandle_t xTaskToDelete )
     {   
         //get the TCB from the handle
@@ -1178,23 +1168,31 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB )
 
         taskENTER_CRITICAL();
 
-        /* If the task is not redundant just delete it
-         * Otherwise, delete also the validation and the control task (if present)
-        */
-        if(pxTCB->isRedundantTask == pdFALSE){
-            oTaskDelete(pxTCB);
-        } else {
-            //delete the validation task
-            if(pxTCB->pxTaskValidation != NULL){
-                oTaskDelete(pxTCB->pxTaskValidation);
+        #if (configUSE_REDUNDANT_TASK == 1)
+
+            /* If the task is not redundant just delete it
+             * Otherwise, delete also the validation and the control task (if present)
+            */
+            if(pxTCB->isRedundantTask == pdFALSE){
+                oTaskDelete(pxTCB);
+            } else {
+                //delete the validation task
+                if(pxTCB->pxTaskValidation != NULL){
+                    oTaskDelete(pxTCB->pxTaskValidation);
+                }
+                //delete the control task
+                if(pxTCB->pxTaskSUS != NULL){
+                    oTaskDelete(pxTCB->pxTaskSUS);
+                }
+                //delete the task
+                oTaskDelete(pxTCB);
             }
-            //delete the control task
-            if(pxTCB->pxTaskSUS != NULL){
-                oTaskDelete(pxTCB->pxTaskSUS);
-            }
-            //delete the task
+        
+        #else
+
             oTaskDelete(pxTCB);
-        }
+
+        #endif
         
         taskEXIT_CRITICAL();
 
@@ -1797,6 +1795,11 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB )
 
 #if ( INCLUDE_vTaskSuspend == 1 )
 
+    /*
+     * Original vTaskSuspend function
+    */
+    void oTaskSuspend( TaskHandle_t xTaskToSuspend ) PRIVILEGED_FUNCTION;
+
     void vTaskSuspend( TaskHandle_t xTaskToSuspend )
     {
        //get the TCB from the handle
@@ -1805,23 +1808,31 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB )
 
         taskENTER_CRITICAL();
 
-        /* If the task is not redundant just suspend it
-         * Otherwise, suspend also the validation and the control task (if present)
-        */
-        if(pxTCB->isRedundantTask == pdFALSE){
-            oTaskSuspend(pxTCB);
-        } else {
-            //suspend the validation task
-            if(pxTCB->pxTaskValidation != NULL){
-                oTaskSuspend(pxTCB->pxTaskValidation);
+        #if (configUSE_REDUNDANT_TASK == 1)
+
+            /* If the task is not redundant just suspend it
+             * Otherwise, suspend also the validation and the control task (if present)
+            */
+            if(pxTCB->isRedundantTask == pdFALSE){
+                oTaskSuspend(pxTCB);
+            } else {
+                //suspend the validation task
+                if(pxTCB->pxTaskValidation != NULL){
+                    oTaskSuspend(pxTCB->pxTaskValidation);
+                }
+                //suspend the control task
+                if(pxTCB->pxTaskSUS != NULL){
+                    oTaskSuspend(pxTCB->pxTaskSUS);
+                }
+                //suspend the task
+                oTaskSuspend(pxTCB);
             }
-            //suspend the control task
-            if(pxTCB->pxTaskSUS != NULL){
-                oTaskSuspend(pxTCB->pxTaskSUS);
-            }
-            //suspend the task
+        
+        #else
+
             oTaskSuspend(pxTCB);
-        }
+        
+        #endif
         
         taskEXIT_CRITICAL(); 
     }
@@ -2082,6 +2093,11 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB )
 
 #if ( INCLUDE_vTaskSuspend == 1 )
 
+    /*
+     * Original vTaskResume function
+    */
+    void oTaskResume( TCB_t* xTaskToResume ) PRIVILEGED_FUNCTION;
+
     void vTaskResume( TaskHandle_t xTaskToSuspend )
     {
        //get the TCB from the handle
@@ -2090,23 +2106,32 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB )
 
         taskENTER_CRITICAL();
 
-        /* Resume the task if not redundant
-         * If redundant, resume also validation and SuS task (if present)
-        */
-        if(pxTCB->isRedundantTask == pdFALSE){
-            oTaskResume(pxTCB);
-        } else {
-            //resume the validation task
-            if(pxTCB->pxTaskValidation != NULL){
-                oTaskResume(pxTCB->pxTaskValidation);
+        #if (configUSE_REDUNDANT_TASK == 1)
+
+            /* Resume the task if not redundant
+             * If redundant, resume also validation and SuS task (if present)
+            */
+            if(pxTCB->isRedundantTask == pdFALSE){
+                oTaskResume(pxTCB);
+            } else {
+                //resume the validation task
+                if(pxTCB->pxTaskValidation != NULL){
+                    oTaskResume(pxTCB->pxTaskValidation);
+                }
+                //Resume the control task
+                if(pxTCB->pxTaskSUS != NULL){
+                    oTaskResume(pxTCB->pxTaskSUS);
+                }
+                //Resume the task
+                oTaskResume(pxTCB);
             }
-            //Resume the control task
-            if(pxTCB->pxTaskSUS != NULL){
-                oTaskResume(pxTCB->pxTaskSUS);
-            }
-            //Resume the task
+
+        #else
+
             oTaskResume(pxTCB);
-        }
+
+        #endif
+
         taskEXIT_CRITICAL(); 
     }
     /*
