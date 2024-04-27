@@ -14,7 +14,7 @@ double calculatePi(int decimalPlaces) {
     return pi * 4;
 }
 
-int main() {
+/*int main() {
     int decimalPlaces;
     printf("Enter the number of decimal places for pi: ");
     scanf("%d", &decimalPlaces);
@@ -23,4 +23,4 @@ int main() {
     printf("Pi: %.15f\n", pi);
 
     return 0;
-}
+}*/
