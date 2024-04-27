@@ -324,7 +324,7 @@ typedef struct tskTaskControlBlock       /* The old naming convention is used to
         int iTaskErrno;
     #endif
 
-    BaseType_t isRedundantTask; /*< The type of the task. */
+    
 
     #if (configUSE_REDUNDANT_TASK == 1)
         struct tskTaskControlBlock * pxTaskValidation; /*< Used for validation of the TCB. */
@@ -336,6 +336,7 @@ typedef struct tskTaskControlBlock       /* The old naming convention is used to
         UBaseType_t uInputStructSize;                  /*< Used for the size of the input structure of the task. */
         void * pxOutputStruct;                         /*< Used for the output structure of the task. */
         UBaseType_t uOutputStructSize;                 /*< Used for the size of the output structure of the task. */
+        BaseType_t isRedundantTask; /*< The type of the task. */
     #endif
 } tskTCB;
 //TODO: [CRITICAL] [TCB_t] aggiungere solo un puntatore ad una struct in più di input che rappresenta l'input a t-1 (o t-2) (ne derivano i cambiament in prvInitialiseNewTask(credo) e nel header file)
@@ -850,11 +851,6 @@ void oTaskResume( TCB_t* xTaskToResume ) PRIVILEGED_FUNCTION;
         {
             xReturn = errCOULD_NOT_ALLOCATE_REQUIRED_MEMORY;
         }
-        
-        pxNewTCB->isRedundantTask = pdFALSE;
-        
-
-       
 
         return xReturn;
     }
@@ -1069,11 +1065,10 @@ static void prvInitialiseNewTask( TaskFunction_t pxTaskCode,
     {
         mtCOVERAGE_TEST_MARKER();
     }
-    
-    pxNewTCB->isRedundantTask = pdFALSE;
 
     // Redundant task initialization
     #if (configUSE_REDUNDANT_TASK==1)
+        pxNewTCB->isRedundantTask = pdFALSE;
         pxNewTCB->pxTaskValidation = NULL;
         pxNewTCB->pxTaskSUS = NULL;
         pxNewTCB->iterationCounter = 0;
@@ -1407,7 +1402,7 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB )
                 taskENTER_CRITICAL();
                 
                 //increase the iteration counter
-                    //pxTCB->iterationCounter++;
+                    pxTCB->iterationCounter++;
 
                     // check if the task and it's own validation are at the same execution point
                     if (xTaskAheadStatus() == 0){

@@ -1315,8 +1315,9 @@ typedef struct xSTATIC_TCB
     #if ( configUSE_POSIX_ERRNO == 1 )
         int iDummy22;
     #endif
-    BaseType_t lDummy23; //boolean for redundant check
+    
     #if ( configUSE_REDUNDANT_TASK == 1)
+        BaseType_t lDummy23;            //boolean for redundant check
         struct xSTATIC_TCB * pxDummy24; // Pointer to the validation task.
         struct xSTATIC_TCB * pxDummy25; // Pointer to the suspended task.
         uint64_t ullDummy26;            // Iteration counter.
