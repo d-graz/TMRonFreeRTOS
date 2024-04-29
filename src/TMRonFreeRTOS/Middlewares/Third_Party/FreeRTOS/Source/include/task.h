@@ -3176,7 +3176,7 @@ void vTaskInternalSetTimeOutState( TimeOut_t * const pxTimeOut ) PRIVILEGED_FUNC
      * Sets the output zone of a task in the task control block.
      * This area will be checked during execution to verify the correctness of the task.
     */
-    BaseType_t xSetOutput(TaskHandle_t task, void* pxStruct, UBaseType_t uxSize, BaseType_t mallocNeeded);
+    BaseType_t xSetOutput(TaskHandle_t task, UBaseType_t uxSize);
 
     /*
      * Returns the output zone of a task from the task control block.
@@ -3188,7 +3188,7 @@ void vTaskInternalSetTimeOutState( TimeOut_t * const pxTimeOut ) PRIVILEGED_FUNC
     * This area is reserved to all the global variables that the task needs in order to assure correct execution.
     * In case of failure when controlling the task, a third task i spawned using this input zone.
     */
-    BaseType_t xSetInput(TaskHandle_t task, void* pxStruct, UBaseType_t uxSize, BaseType_t mallocNeeded);
+    BaseType_t xSetInput(TaskHandle_t task, void* pxStruct, UBaseType_t uxSize);
 
     /*
      * Returns the input zone of a task.
@@ -3217,12 +3217,7 @@ void vTaskInternalSetTimeOutState( TimeOut_t * const pxTimeOut ) PRIVILEGED_FUNC
 
 #endif
 
-void taskDeleteRedundant(TaskHandle_t task); //delete task and associated validation and SUS task (if present)
-
 //UTILS
 
 //TODO: [DEBUG] eliminate utils before release
 void printTaskList();
-BaseType_t isValidationTask(TaskHandle_t task);
-void increaseIterationCounter(TaskHandle_t task);
-void compareTaskStack(TaskHandle_t task);

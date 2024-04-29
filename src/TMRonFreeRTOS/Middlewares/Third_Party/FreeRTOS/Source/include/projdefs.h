@@ -120,7 +120,6 @@ typedef void (* TaskFunction_t)( void * );
 
 #if ( configUSE_REDUNDANT_TASK == 1)
     typedef struct xRedundantShared {
-        BaseType_t isRedundantTask;                    /*< The type of the task. */
         void (*pxCommitFunction)(void*);               /*< Used for the commit function of the task. */
         void *pxCommitFunctionParameter;               /*< Used for the parameter of the commit function of the task. */
         void * pxPreviousInputStruct;                  /*< Input at t-1 for task. */

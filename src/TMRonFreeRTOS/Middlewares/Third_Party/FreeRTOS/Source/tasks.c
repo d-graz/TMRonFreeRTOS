@@ -325,7 +325,8 @@ typedef struct tskTaskControlBlock       /* The old naming convention is used to
     #endif
 
     #if (configUSE_REDUNDANT_TASK == 1)
-        xRedundantStruct_t redundantStruct;
+        BaseType_t isRedundantTask;                    /*< The type of the task. */
+        xRedundantStruct_t redundantStruct;            /*< The structure that holds the redundant task information. */
     #endif
 
 } tskTCB;
@@ -574,6 +575,17 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB ) PRIVILEGED_FUNCTION;
      * Function that compares 2 zones of memory
     */
     BaseType_t compareZone( void *pxStruct1, void* pxStruct2, UBaseType_t uStructSize );
+
+    /**
+     * Function used to initialize the xRedundantStruct_t structure during prvInitialise
+    */
+    void prvInitializeRedundantStruct( xRedundantStruct_t *pxRedundantStruct );
+
+    /**
+     * Function used to set a structure (either input or output) to a determinate zone of the memory (related to a task)
+     * It can allocate memory if needed.
+    */
+    BaseType_t xSetStruct(void* pxStruct, UBaseType_t uxSize, void ** destination);
 #endif
 
 /*-----------------------------------------------------------*/
@@ -1040,23 +1052,12 @@ static void prvInitialiseNewTask( TaskFunction_t pxTaskCode,
         mtCOVERAGE_TEST_MARKER();
     }
 
-    // Redundant task initialization
+    // Basic redundant task initialization
     #if (configUSE_REDUNDANT_TASK==1)
+
         pxNewTCB->isRedundantTask = pdFALSE;
-        pxNewTCB->pxTaskValidation = NULL;
-        pxNewTCB->pxTaskSUS = NULL;
-        pxNewTCB->iterationCounter = 0;
-        pxNewTCB->pxCommitFunction = NULL;
-        pxNewTCB->pxCommitFunctionParameter = NULL;
-        pxNewTCB->pxInputStruct = NULL;
-        pxNewTCB->uInputStructSize = 0;
-        pxNewTCB->pxOutputStruct = NULL;
-        pxNewTCB->uOutputStructSize = 0;
-        pxNewTCB->pxPreviousInputStruct = NULL;
-        pxNewTCB->isRecoveryProcess = pdFALSE;
-        pxNewTCB->taskCode = pxTaskCode;
-        pxNewTCB->stackDepth = ulStackDepth;
-        pxNewTCB->pvParameters = pvParameters;
+        prvInitializeRedundantStruct(&(pxNewTCB->redundantStruct));
+
     #endif
 }
 /*-----------------------------------------------------------*/
@@ -1165,16 +1166,17 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB )
             /* If the task is not redundant just delete it
              * Otherwise, delete also the validation and the control task (if present)
             */
+           //TODO : [HIGH] [vTaskDelete] delete allocated shared struct
             if(pxTCB->isRedundantTask == pdFALSE){
                 oTaskDelete(pxTCB);
             } else {
                 //delete the validation task
-                if(pxTCB->pxTaskValidation != NULL){
-                    oTaskDelete(pxTCB->pxTaskValidation);
+                if(pxTCB->redundantStruct.pxTaskValidation != NULL){
+                    oTaskDelete(pxTCB->redundantStruct.pxTaskValidation);
                 }
                 //delete the control task
-                if(pxTCB->pxTaskSUS != NULL){
-                    oTaskDelete(pxTCB->pxTaskSUS);
+                if(pxTCB->redundantStruct.pxTaskSUS != NULL){
+                    oTaskDelete(pxTCB->redundantStruct.pxTaskSUS);
                 }
                 //delete the task
                 oTaskDelete(pxTCB);
@@ -1858,12 +1860,13 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB )
                 oTaskSuspend(pxTCB);
             } else {
                 //suspend the validation task
-                if(pxTCB->pxTaskValidation != NULL){
-                    oTaskSuspend(pxTCB->pxTaskValidation);
+                if(pxTCB->redundantStruct.pxTaskValidation != NULL){
+                    oTaskSuspend(pxTCB->redundantStruct.pxTaskValidation);
                 }
                 //suspend the control task
-                if(pxTCB->pxTaskSUS != NULL){
-                    oTaskSuspend(pxTCB->pxTaskSUS);
+                //TODO: [LOW] [vTaskSuspend] this should not happen; investigate
+                if(pxTCB->redundantStruct.pxTaskSUS != NULL){
+                    oTaskSuspend(pxTCB->redundantStruct.pxTaskSUS);
                 }
                 //suspend the task
                 oTaskSuspend(pxTCB);
@@ -2156,12 +2159,13 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB )
                 oTaskResume(pxTCB);
             } else {
                 //resume the validation task
-                if(pxTCB->pxTaskValidation != NULL){
-                    oTaskResume(pxTCB->pxTaskValidation);
+                if(pxTCB->redundantStruct.pxTaskValidation != NULL){
+                    oTaskResume(pxTCB->redundantStruct.pxTaskValidation);
                 }
                 //Resume the control task
-                if(pxTCB->pxTaskSUS != NULL){
-                    oTaskResume(pxTCB->pxTaskSUS);
+                //TODO: [LOW] [vTaskResume] this should not happen; investigate
+                if(pxTCB->redundantStruct.pxTaskSUS != NULL){
+                    oTaskResume(pxTCB->redundantStruct.pxTaskSUS);
                 }
                 //Resume the task
                 oTaskResume(pxTCB);
@@ -5817,12 +5821,35 @@ static void prvAddCurrentTaskToDelayedList( TickType_t xTicksToWait,
         // linking the validation task to the original task
         TCB_t * tcb_createdTask = (TCB_t *) *pxCreatedTask;
         TCB_t * tcb_createdTask_vd = (TCB_t *) createdTask_vd;
-        tcb_createdTask->pxTaskValidation = tcb_createdTask_vd;
-        tcb_createdTask_vd->pxTaskValidation = tcb_createdTask;
+        tcb_createdTask->redundantStruct.pxTaskValidation = tcb_createdTask_vd;
+        tcb_createdTask_vd->redundantStruct.pxTaskValidation = tcb_createdTask;
 
         //setting task to be redundant
         tcb_createdTask->isRedundantTask=pdTRUE;
         tcb_createdTask_vd->isRedundantTask=pdTRUE;
+
+        //initialize the shared struct
+        xRedundantShared_t * pxRedundantShared = pvPortMalloc(sizeof(xRedundantShared_t));
+        if (pxRedundantShared == NULL) {
+            xReturn = pdFAIL;
+            oTaskDelete((TCB_t *) *pxCreatedTask);
+            oTaskDelete((TCB_t *) createdTask_vd);
+            return xReturn;
+        }
+
+        pxRedundantShared->isRecoveryProcess = pdFALSE;
+        pxRedundantShared->pxCommitFunction = NULL;
+        pxRedundantShared->pxCommitFunctionParameter = NULL;
+        pxRedundantShared->pxPreviousInputStruct = NULL;
+        pxRedundantShared->uInputStructSize = 0;
+        pxRedundantShared->uOutputStructSize = 0;
+        pxRedundantShared->taskCode = pxTaskCode;
+        pxRedundantShared->stackDepth = usStackDepth;
+        pxRedundantShared->pvParameters = pvParameters;
+
+        //linking the shared struct to the tasks
+        tcb_createdTask->redundantStruct.pxRedundantShared = pxRedundantShared;
+        tcb_createdTask_vd->redundantStruct.pxRedundantShared = pxRedundantShared;
         
         return xReturn;
     }
@@ -5831,59 +5858,62 @@ static void prvAddCurrentTaskToDelayedList( TickType_t xTicksToWait,
         TCB_t * tcb;
         tcb = prvGetTCBFromHandle(task);
         configASSERT(tcb->isRedundantTask == pdTRUE); /* Checks that the task is actually a redundant one*/
-        tcb->pxCommitFunction = pxCommitFunction;
-        tcb->pxCommitFunctionParameter = pxCommitFunctionArgs;
+        tcb->redundantStruct.pxRedundantShared->pxCommitFunction = pxCommitFunction;
+        tcb->redundantStruct.pxRedundantShared->pxCommitFunctionParameter = pxCommitFunctionArgs;
         return pdTRUE;
     }
 
-    BaseType_t xSetOutput(TaskHandle_t task, void* pxStruct, UBaseType_t uxSize, BaseType_t mallocNeeded){
+    BaseType_t xSetOutput(TaskHandle_t task, UBaseType_t uxSize){
         TCB_t * tcb;
         tcb = prvGetTCBFromHandle(task);
         configASSERT(tcb->isRedundantTask == pdTRUE); /* Checks that the task is actually a redundant one*/
-        if (mallocNeeded == pdTRUE) {
-            tcb->pxOutputStruct = pvPortMalloc(uxSize);
-            if (tcb->pxOutputStruct == NULL) {
-                return pdFALSE; /* Return pdFALSE if memory allocation failed */
-            }
-        } else {
-            tcb->pxOutputStruct = pxStruct;
+        BaseType_t xReturn;
+        xReturn = xSetStruct(NULL, uxSize, &(tcb->redundantStruct.pxOutputStruct)); /* Setting the structure passed as output. If the output stucture is null allocates it*/
+        if (xReturn == pdFALSE) {
+            return pdFALSE; /* Return pdFALSE if memory allocation failed */
         }
-        tcb->uOutputStructSize = uxSize;
-        return pdTRUE;
-    }
-
-    void* xGetOutput(TaskHandle_t task){
-        TCB_t * tcb;
-        tcb = prvGetTCBFromHandle(task);
-        configASSERT(tcb->isRedundantTask == pdTRUE); /* Checks that the task is actually a redundant one*/
-        return tcb->pxOutputStruct;
-    }
-
-    BaseType_t xSetInput(TaskHandle_t task, void* pxStruct, UBaseType_t uxSize, BaseType_t mallocNeeded){
-        TCB_t * tcb;
-        tcb = prvGetTCBFromHandle(task);
-        configASSERT(tcb->isRedundantTask == pdTRUE); /* Checks that the task is actually a redundant one*/
-        if (mallocNeeded == pdTRUE) {
-            tcb->pxInputStruct = pvPortMalloc(uxSize);
-            if (tcb->pxInputStruct == NULL) {
-                return pdFALSE; /* Return pdFALSE if memory allocation failed */
-            }
-        } else {
-            tcb->pxInputStruct = pxStruct;
-        }
-        tcb->uInputStructSize = uxSize;
-        tcb->pxPreviousInputStruct = pvPortMalloc(uxSize);
-        if (tcb->pxPreviousInputStruct == NULL) {
+        xReturn = xSetStruct(NULL, uxSize, &(tcb->redundantStruct.pxTaskValidation->redundantStruct.pxOutputStruct)); /* Allocates spaces in the validation task for the output*/
+        if (xReturn == pdFALSE) {
             return pdFALSE; /* Return pdFALSE if memory allocation failed */
         }
         return pdTRUE;
     }
 
+    //TODO: [LOW] [xGetInput] this function should be called with NULL as parameter
+    void* xGetOutput(TaskHandle_t task){
+        TCB_t * tcb;
+        tcb = prvGetTCBFromHandle(task);
+        configASSERT(tcb->isRedundantTask == pdTRUE); /* Checks that the task is actually a redundant one*/
+        return tcb->redundantStruct.pxOutputStruct;
+    }
+
+    BaseType_t xSetInput(TaskHandle_t task, void* pxStruct, UBaseType_t uxSize){
+        TCB_t * tcb;
+        tcb = prvGetTCBFromHandle(task);
+        configASSERT(tcb->isRedundantTask == pdTRUE); /* Checks that the task is actually a redundant one*/
+        BaseType_t xReturn;
+        xReturn = xSetStruct(pxStruct, uxSize, &(tcb->redundantStruct.pxInputStruct)); /* Setting the structure passed as input. If the input stucture is null allocates it*/
+        if (xReturn == pdFALSE) {
+            return pdFALSE; /* Return pdFALSE if memory allocation failed */
+        }
+        xReturn = xSetStruct(NULL, uxSize, &(tcb->redundantStruct.pxTaskValidation->redundantStruct.pxInputStruct)); /* Allocates spaces in the validation task for the input*/
+        if (xReturn == pdFALSE) {
+            return pdFALSE; /* Return pdFALSE if memory allocation failed */
+        }
+        // copy the input struct to the validation task if not null
+        if (pxStruct != NULL) {
+            memcpy(tcb->redundantStruct.pxTaskValidation->redundantStruct.pxInputStruct, pxStruct, uxSize);
+        }
+        xReturn = xSetStruct(NULL, uxSize, &(tcb->redundantStruct.pxRedundantShared->pxPreviousInputStruct)); /* Allocates space for the previous (shared) input*/
+        return xReturn;
+    }
+
+    //TODO: [LOW] [xGetInput] this function should be called with NULL as parameter
     void* xGetInput(TaskHandle_t task){
         TCB_t * tcb;
         tcb = prvGetTCBFromHandle(task);
         configASSERT(tcb->isRedundantTask == pdTRUE); /* Checks that the task is actually a redundant one*/
-        return tcb->pxInputStruct;
+        return tcb->redundantStruct.pxInputStruct;
     }
 
     void xSuspendTaskAhead(){
@@ -5904,11 +5934,11 @@ static void prvAddCurrentTaskToDelayedList( TickType_t xTicksToWait,
 
     BaseType_t xTaskAheadStatus() {
         TCB_t *tcb = prvGetTCBFromHandle(NULL);
-        if(tcb->iterationCounter > tcb->pxTaskValidation->iterationCounter)
+        if(tcb->redundantStruct.iterationCounter > tcb->redundantStruct.pxTaskValidation->redundantStruct.iterationCounter)
         {
             return 1;
         }
-        else if(tcb->iterationCounter == tcb->pxTaskValidation->iterationCounter)
+        else if(tcb->redundantStruct.iterationCounter == tcb->redundantStruct.pxTaskValidation->redundantStruct.iterationCounter)
         {
             return 0;
         }
@@ -5924,28 +5954,29 @@ static void prvAddCurrentTaskToDelayedList( TickType_t xTicksToWait,
         }
     }
 
-#endif
-
-/**
- * Delete task and related validation task. 
- * //TODO: [LOW] [redundantDelete] this should be more an explode than a delete
-*/
-void taskDeleteRedundant(TaskHandle_t task) {
-    if(task!=NULL){
-        TCB_t *tcb = (TCB_t *)task;
-        taskENTER_CRITICAL();
-        if (tcb->pxTaskValidation != NULL) {
-            // Delete the validation task
-            vTaskDelete((TaskHandle_t) tcb->pxTaskValidation);
-        }
-        if(tcb->pxTaskSUS!=NULL){ //NOTE: should never be true
-            vTaskDelete((TaskHandle_t) tcb->pxTaskSUS);    
-        }
-        // Delete the main task
-        vTaskDelete(task);
-        taskEXIT_CRITICAL();
+    void prvInitializeRedundantStruct( xRedundantStruct_t *pxRedundantStruct ){
+        pxRedundantStruct->iterationCounter = 0;
+        pxRedundantStruct->pxInputStruct = NULL;
+        pxRedundantStruct->pxOutputStruct = NULL;
+        pxRedundantStruct->pxTaskValidation = NULL;
+        pxRedundantStruct->pxTaskSUS = NULL;
+        pxRedundantStruct->pxRedundantShared = NULL;
     }
-}
+
+    BaseType_t xSetStruct(void* pxStruct, UBaseType_t uxSize, void ** destination){
+        // check if the struct has been already allocated
+        if (pxStruct != NULL) {
+            *destination = pxStruct;
+            return pdTRUE;
+        }
+        *destination = pvPortMalloc(uxSize);
+        if(*destination == NULL){
+            return pdFALSE;
+        }
+        return pdTRUE;
+    }
+
+#endif
 
 
 
@@ -5960,79 +5991,4 @@ void printTaskList() {
     char taskListBuffer[TASK_LIST_BUFFER_SIZE];
     vTaskList(taskListBuffer);
     printf("%s\n", taskListBuffer);
-}
-
-/**
- * returns pdTRUE if task is a validation task pdFALSE otherwise.
- * Note that this choice is arbitrary, there is no master-slave relation between a task and a validation task.
-*/
-BaseType_t isValidationTask(TaskHandle_t task) {
-    TCB_t *tcb = (TCB_t *)task;
-    if(strstr(tcb->pcTaskName, "_vd") != NULL)
-    {
-        return pdTRUE;
-    }
-    else{
-        return pdFALSE;
-    }
-}
-
-/**
- * manual incrementation of the iterationCounter, should not be used normally.
-*/
-void increaseIterationCounter(TaskHandle_t task) {
-    TCB_t *tcb = (TCB_t *)task;
-    tcb->iterationCounter++;
-}
-
-/*
- * Compares the stack of 2 tasks given their tcbs
-*/
-void compareTaskStacks(TCB_t *tcb1, TCB_t *tcb2) {
-    StackType_t *base1 = tcb1->pxStack;
-    StackType_t *base2 = tcb2->pxStack;
-    StackType_t *top1 = tcb1->pxTopOfStack;
-    StackType_t *top2 = tcb2->pxTopOfStack;
-
-    UBaseType_t size1 = top1 - base1;
-    UBaseType_t size2 = top2 - base2;
-
-    if (size1 != size2) {
-        printf("The stack sizes are not equal\n");
-        return;
-    } else {
-        printf("The stack sizes are equal of size %lu\n", size1);
-    }
-
-    UBaseType_t start = 0;
-    short unsigned int inRange = 0;
-
-    for (UBaseType_t i = 0; i < size1; i++) {
-        if (base1[i] == base2[i]) {
-            if (!inRange) {
-                start = i;
-                inRange = 1;
-            }
-        } else {
-            if (inRange) {
-                printf("From index %lu to %lu the 2 stacks are equal\n", start, i - 1);
-                inRange = 0;
-            }
-        }
-    }
-
-    if (inRange) {
-        printf("From index %lu to %lu the 2 stacks are equal\n", start, size1 - 1);
-    }
-    printf("\n\n");
-}
-
-/*
- * Caller of compareTaskStacks(TCB_t *tcb1, TCB_t *tcb2)
-*/
-void compareTaskStack(TaskHandle_t task){
-    TCB_t *tcb = (TCB_t *)task;
-    printf("Currently active task: %s\n", tcb->pcTaskName);
-    printf("Validation task : %s\n", tcb->pxTaskValidation->pcTaskName);
-    compareTaskStacks(tcb, tcb->pxTaskValidation);
 }
