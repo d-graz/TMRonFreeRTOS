@@ -1456,7 +1456,7 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB )
                     // check if the task and it's validation are at the same execution point
                     if (xTaskAheadStatus() == 0){
                         #ifdef __DEBUG__
-                                printf("Task %s is a the same point of execution of %s\n", pxTCB->pcTaskName, pxTCB->redundantStruct.pxTaskValidation->pcTaskName);
+                                printf("\nDEBUG: [vTaskDelay] - Task %s is a the same point of execution of %s\n", pxTCB->pcTaskName, pxTCB->redundantStruct.pxTaskValidation->pcTaskName);
                         #endif
                         BaseType_t xReturn;
 
@@ -1470,20 +1470,20 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB )
                             xReturn = compareZone(pxTCB->redundantStruct.pxOutputStruct, pxTCB->redundantStruct.pxTaskValidation->redundantStruct.pxOutputStruct, pxTCB->redundantStruct.pxRedundantShared->uOutputStructSize);
                             if(xReturn == pdFAIL) {
                                 #ifdef __DEBUG__
-                                    printf("Failed to confront output of tasks\n");
+                                    printf("\nDEBUG: [vTaskDelay] - Failed to confront output of tasks\n");
                                 #endif
                                 TaskHandle_t xTaskRecoveryHandle; //spawn handle that will be used to spawn taskSuS
                                 TCB_t * pxTaskRecovery;
                                 xReturn = compareZone(pxTCB->redundantStruct.pxInputStruct, pxTCB->redundantStruct.pxTaskValidation->redundantStruct.pxInputStruct, pxTCB->redundantStruct.pxRedundantShared->uInputStructSize); //compare input at current iteration
                                 if( xReturn == pdFAIL){
                                     #ifdef __DEBUG__
-                                        printf("Failed to confront iteration-1 input of tasks\n");
+                                        printf("DEBUG: [vTaskDelay] - Failed to confront iteration-1 input of tasks\n");
                                     #endif
                                 //input at iteration-1 must be checked
                                 }
                                 else{
                                     #ifdef __DEBUG__
-                                        printf("starting recovery process\n\n");
+                                        printf("DEBUG: [vTaskDelay] - starting recovery process\n\n");
                                     #endif
                                     //TODO: [LOW] [vTaskDelay] change name to be task specific 
                                     //TODO: [MEDIUM] [vTaskDelay] handle failure of taskSUS creation
@@ -1501,7 +1501,7 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB )
                             }
                             else {
                                 #ifdef __DEBUG__
-                                    printf("Output of tasks are the same\n");
+                                    printf("\nDEBUG: [vTaskDelay] - Output of tasks are the same\n");
                                 #endif
                                 //commit output
                                 pxTCB->redundantStruct.pxRedundantShared->pxCommitFunction(pxTCB->redundantStruct.pxRedundantShared->pxCommitFunctionParameter);

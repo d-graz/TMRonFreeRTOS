@@ -53,6 +53,13 @@ const osThreadAttr_t taskPiAttributes = {
   .stack_size = 500 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
+
+osThreadId_t taskFibonacci;
+const osThreadAttr_t taskFibonacciAttributes = {
+  .name = "fiboTask",
+  .stack_size = 500 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
 /* USER CODE BEGIN PV */
 
 /* USER CODE END PV */
@@ -63,6 +70,7 @@ static void MX_GPIO_Init(void);
 static void MX_USART2_UART_Init(void);
 
 void taskPiBody(void *argument);
+void taskFibonacciBody(void *argument);
 
 /* USER CODE BEGIN PFP */
 
@@ -88,9 +96,24 @@ typedef struct outputPi {
   double pi;
 } outputPi_t;
 
+typedef struct inputFibonacci {
+  int n_previous;
+  int n_current;
+} inputFibonacci_t;
+
+typedef struct outputFibonacci {
+  int n_next;
+} outputFibonacci_t;
+
+
 void commitPi(){
   outputPi_t * output = (outputPi_t*) xGetOutput(NULL);
-  printf("Pi: %f\n", output->pi);
+  printf("Pi: %f\n", output->pi * 4);
+}
+
+void commitFibonacci(){
+  outputFibonacci_t * output = (outputFibonacci_t*) xGetOutput(NULL);
+  printf("output FIBONACCI [COMMIT] : %d\n", output->n_next);
 }
 
 int main(void)
@@ -144,7 +167,7 @@ int main(void)
   /* Create the thread(s) */
   /* creation of TheTask */
   taskPi = osThreadNewRedundant(taskPiBody, NULL, &taskPiAttributes);
-
+  taskFibonacci=osThreadNewRedundant(taskFibonacciBody, NULL, &taskFibonacciAttributes);
   // setting parameters for the pi task
   #ifdef __DEBUG__
     printf("Setting commit function for taskPi\n");
@@ -359,13 +382,43 @@ void taskPiBody(void *argument)
     inputPi_t * input = (inputPi_t*) xGetInput(NULL);
     outputPi_t * output = (outputPi_t*) xGetOutput(NULL);
 
-    printf("input: %f %d %d\n", input->pi, input->sign, input->denominator);
+    //printf("input: %f %d %d\n", input->pi, input->sign, input->denominator);
 
     output->pi += (double) input->sign / input->denominator;
     input->sign *= -1;
     input->denominator += 2;
     input->pi = output->pi;
+  
+    osDelay(5000);
+  }
+}
 
+void taskFibonacciBody(void *argument){
+  xSetCommitFunction(taskFibonacci, commitFibonacci, NULL);
+  int result=0;
+  #ifdef __DEBUG__
+    printf("Setting input for FIBONACCI\n\n");
+  #endif
+  inputFibonacci_t * input_og = pvPortMalloc(sizeof(inputFibonacci_t));
+  input_og->n_previous = 0;
+  input_og->n_current = 1;
+  xSetInput(taskFibonacci, input_og, sizeof(inputFibonacci_t));
+
+  #ifdef __DEBUG__
+    printf("\nSetting output structure for FIBONACCI\n\n");
+  #endif
+  xSetOutput(taskFibonacci, sizeof(outputFibonacci_t));
+
+  for(;;){
+    inputFibonacci_t * input = (inputFibonacci_t*) xGetInput(NULL);
+    outputFibonacci_t * output = (outputFibonacci_t*) xGetOutput(NULL);
+    #ifdef __DEBUG__
+      printf("\ninput:\na= %d\nb= %d\n", input->n_previous, input->n_current);
+    #endif
+    result = input->n_previous + input->n_current;
+    output->n_next = result;
+    input->n_previous = input->n_current;
+    input->n_current = result;
     osDelay(5000);
   }
 }
