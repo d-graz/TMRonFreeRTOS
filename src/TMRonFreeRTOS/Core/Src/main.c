@@ -348,9 +348,6 @@ void TheTaskBody(void *argument)
   /* Infinite loop */
   for(;;)
   {
-    if (isValidationTask(xTaskGetCurrentTaskHandle())){ //print taskList periodically, check validationTask to avoid double printing
-    	printTaskList();
-    }
     
     if (flip == 0){
     	flip = 1;
