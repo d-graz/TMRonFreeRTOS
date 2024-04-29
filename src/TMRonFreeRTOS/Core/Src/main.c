@@ -46,24 +46,11 @@
 UART_HandleTypeDef huart2;
 
 /* Definitions for TheTask */
-osThreadId_t TheTaskHandle;
-const osThreadAttr_t TheTask_attributes = {
-  .name = "TheTask",
-  .stack_size = 512 * 4,
-  .priority = (osPriority_t) osPriorityNormal,
-};
 
-osThreadId_t taskUtilHandle;
-const osThreadAttr_t taskUtil_attributes = {
-  .name = "taskUtil",
-  .stack_size = 128 * 4,
-  .priority = (osPriority_t) osPriorityNormal,
-};
-
-osThreadId_t taskDebugHandle;
-const osThreadAttr_t taskDebug_attributes = {
-  .name = "taskDebug",
-  .stack_size = 128 * 4,
+osThreadId_t taskPi;
+const osThreadAttr_t taskPiAttributes = {
+  .name = "piTask",
+  .stack_size = 500 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
 /* USER CODE BEGIN PV */
@@ -75,9 +62,8 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_USART2_UART_Init(void);
 
-void TheTaskBody(void *argument);
-void taskUtilBody(void *argument);
-void taskDebugBody(void *argument);
+void taskPiBody(void *argument);
+
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -91,6 +77,22 @@ void taskDebugBody(void *argument);
   * @brief  The application entry point.
   * @retval int
   */
+
+typedef struct inputPi {
+  double pi;
+  int sign;
+  int denominator;
+} inputPi_t;
+
+typedef struct outputPi {
+  double pi;
+} outputPi_t;
+
+void commitPi(){
+  outputPi_t * output = (outputPi_t*) xGetOutput(NULL);
+  printf("Pi: %f\n", output->pi);
+}
+
 int main(void)
 {
   /* USER CODE BEGIN 1 */
@@ -141,9 +143,30 @@ int main(void)
 
   /* Create the thread(s) */
   /* creation of TheTask */
-  TheTaskHandle = osThreadNewRedundant(TheTaskBody, NULL, &TheTask_attributes);
-  taskDebugHandle = osThreadNewRedundant(taskDebugBody, NULL, &taskDebug_attributes);
-  taskUtilHandle = osThreadNewRedundant(taskUtilBody, NULL, &taskUtil_attributes);
+  taskPi = osThreadNewRedundant(taskPiBody, NULL, &taskPiAttributes);
+
+  // setting parameters for the pi task
+  #ifdef __DEBUG__
+    printf("Setting commit function for taskPi\n");
+  #endif
+  xSetCommitFunction(taskPi, commitPi, NULL);
+
+  #ifdef __DEBUG__
+    printf("Setting input for taskPi\n");
+  #endif
+  inputPi_t * input = pvPortMalloc(sizeof(inputPi_t));
+  input->pi = 0.0;
+  input->sign = 1;
+  input->denominator = 1;
+  xSetInput(taskPi, input, sizeof(inputPi_t));
+
+  #ifdef __DEBUG__
+    printf("Setting output structure\n");
+  #endif
+  xSetOutput(taskPi, sizeof(outputPi_t));
+
+
+
 
   #ifdef __DEBUG__
   	printTaskList();
@@ -330,52 +353,20 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE END 4 */
 
-
-/* USER CODE BEGIN Header_TheTaskBody */
-/**
-* @brief Function implementing the TheTask thread.
-* @param argument: Not used
-* @retval None
-*/
-/* USER CODE END Header_TheTaskBody */
-void TheTaskBody(void *argument)
+void taskPiBody(void *argument)
 {
-  /* USER CODE BEGIN TheTaskBody */
-	short unsigned int flip = 0;
-	short unsigned int counter = 0;
-	//TaskStatus_t status;
-	//TaskHandle_t currentTaskHandle;
-  /* Infinite loop */
-  for(;;)
-  {
-    
-    if (flip == 0){
-    	flip = 1;
-    	//printf("Switching led on\n");
-    } else {
-    	flip = 0;
-    	//printf("Switching led off\n");
-    }
-    HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
+  for(;;){
+    inputPi_t * input = (inputPi_t*) xGetInput(NULL);
+    outputPi_t * output = (outputPi_t*) xGetOutput(NULL);
 
-    //vTaskGetInfo(NULL, &status, pdFALSE, eInvalid);
-    //printf("Task %s at cycle %lu\n", status.pcTaskName, counter);
-    //currentTaskHandle = xTaskGetCurrentTaskHandle();
-    //compareTaskStack(currentTaskHandle);
-    counter++;
-    osDelay(10000);
-  }
-  /* USER CODE END TheTaskBody */
-}
+    printf("input: %f %d %d\n", input->pi, input->sign, input->denominator);
 
-void taskUtilBody(void *argument)
-{
-  int counter = 1;
-  for(;;)
-  {
-    printf("util %d\n\n", counter);
-    counter++;
-    osDelay(3000);
+    output->pi += (double) input->sign / input->denominator;
+    input->sign *= -1;
+    input->denominator += 2;
+    input->pi = output->pi;
+
+    osDelay(5000);
   }
 }
 

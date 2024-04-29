@@ -25,7 +25,7 @@
  * https://github.com/FreeRTOS
  *
  */
-
+#define __DEBUG__
 /* Standard includes. */
 #include <stdlib.h>
 #include <string.h>
@@ -1456,7 +1456,7 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB )
                     // check if the task and it's validation are at the same execution point
                     if (xTaskAheadStatus() == 0){
                         #ifdef __DEBUG__
-                                printf("Task %s is a the same point of execution of %s\n", pxTCB->pcTaskName, pxTCB->pxTaskValidation->pcTaskName);
+                                printf("Task %s is a the same point of execution of %s\n", pxTCB->pcTaskName, pxTCB->redundantStruct.pxTaskValidation->pcTaskName);
                         #endif
                         BaseType_t xReturn;
 

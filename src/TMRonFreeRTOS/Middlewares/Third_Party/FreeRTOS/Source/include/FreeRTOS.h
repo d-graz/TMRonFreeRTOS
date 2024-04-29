@@ -1319,7 +1319,8 @@ typedef struct xSTATIC_TCB
     #endif
     
     #if ( configUSE_REDUNDANT_TASK == 1)
-        xRedundantStruct_t dummy23;
+        BaseType_t dummy23;
+        xRedundantStruct_t dummy24;
     #endif
 } StaticTask_t;
 
