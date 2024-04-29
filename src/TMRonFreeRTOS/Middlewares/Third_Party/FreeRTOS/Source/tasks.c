@@ -1421,7 +1421,6 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB )
             memcpy(recovery_tcb->redundantStruct.pxInputStruct, original_tcb->redundantStruct.pxInputStruct, original_tcb->redundantStruct.pxRedundantShared->uInputStructSize);
             //allocate memory for the output struct (should be filled during the iteration)
             recovery_tcb->redundantStruct.pxOutputStruct=pvPortMalloc(original_tcb->redundantStruct.pxRedundantShared->uOutputStructSize);
-            //TODO: [LOW] [vTaskDelay] check if this is nece
             //update counter of recovery task to correct iteration
             recovery_tcb->redundantStruct.iterationCounter=original_tcb->redundantStruct.iterationCounter;
             //link recovery task with original and validation task
@@ -1444,21 +1443,29 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB )
             TCB_t * pxTCB=prvGetTCBFromHandle(NULL);
 
             if(pxTCB->isRedundantTask==pdTRUE){
-
+                //check if the task is in recovery process
+                if(pxTCB->redundantStruct.pxRedundantShared->isRecoveryProcess==pdFALSE && pxTCB->redundantStruct.pxTaskSUS!=NULL){
+                    //if the task is in recovery process, delete the taskSUS
+                    oTaskDelete(pxTCB->redundantStruct.pxTaskSUS);
+                }
                 taskENTER_CRITICAL();
                 
                 //increase the iteration counter
                     pxTCB->redundantStruct.iterationCounter++;
 
-                    // check if the task and it's own validation are at the same execution point
+                    // check if the task and it's validation are at the same execution point
                     if (xTaskAheadStatus() == 0){
                         #ifdef __DEBUG__
                                 printf("Task %s is a the same point of execution of %s\n", pxTCB->pcTaskName, pxTCB->pxTaskValidation->pcTaskName);
                         #endif
                         BaseType_t xReturn;
-                        //check isRecoveryProcess
-                        //false-> compare and if needed start recovery, otherwise commit
-                        //true-> check if recovery was successful, restore original task and validation + commit
+
+                        /*
+                        * check isRecoveryProcess
+                        * false-> compare and if needed start recovery, otherwise commit
+                        * true-> check if recovery was successful, restore original task and validation + commit
+                        */
+
                         if(pxTCB->redundantStruct.pxRedundantShared->isRecoveryProcess==pdFALSE){
                             xReturn = compareZone(pxTCB->redundantStruct.pxOutputStruct, pxTCB->redundantStruct.pxTaskValidation->redundantStruct.pxOutputStruct, pxTCB->redundantStruct.pxRedundantShared->uOutputStructSize);
                             if(xReturn == pdFAIL) {
@@ -1482,7 +1489,6 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB )
                                     //TODO: [MEDIUM] [vTaskDelay] handle failure of taskSUS creation
 
                                     //Create recovery task, initialize it correctly 
-                                    //TODO: [MEDIUM] [vTaskDelay] move code to a separate function
                                     xTaskCreate(pxTCB->redundantStruct.pxRedundantShared->taskCode, "RecoveryTask", pxTCB->redundantStruct.pxRedundantShared->stackDepth, pxTCB->redundantStruct.pxRedundantShared->pvParameters, pxTCB->uxPriority, &xTaskRecoveryHandle);
                                     pxTaskRecovery=prvGetTCBFromHandle(xTaskRecoveryHandle);
                                     
@@ -1491,29 +1497,17 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB )
                                     //suspend original and validation task
                                     oTaskSuspend(pxTCB);
                                     oTaskSuspend(pxTCB->redundantStruct.pxTaskValidation);
-
-                                    //new task is now created and we must wait one iteration before checking if the output now matches
-
                                 }
-                                //TODO: [CRITCAL] [vTaskDelay] and other recovery logic
-                                //set input to previous input
-                                //copy input and output of sus task on recovered task
-                                //delete sus task (no longer needed)
-                                //commit result
-
-                                //resume of other tasks
                             }
-                            
                             else {
                                 #ifdef __DEBUG__
                                     printf("Output of tasks are the same\n");
                                 #endif
-                                //output are equal, perform commit function and update previousinput
-
+                                //commit output
                                 pxTCB->redundantStruct.pxRedundantShared->pxCommitFunction(pxTCB->redundantStruct.pxRedundantShared->pxCommitFunctionParameter);
-                                
+                                //update previous input
+                                memcpy(pxTCB->redundantStruct.pxRedundantShared->pxPreviousInputStruct, pxTCB->redundantStruct.pxInputStruct, pxTCB->redundantStruct.pxRedundantShared->uInputStructSize);
                             }
-
                         }
                         else{
                             //here if isRecoveryProcess==pdTRUE, check if recovery was successful
@@ -1541,16 +1535,13 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB )
                                 //if reached, recovery successful, restore original task and validation + commit
                                 xTaskRestore(pxTCB, pxTCB->redundantStruct.pxTaskValidation);
                             }
-                            //resume tasks
-                            //commit results
-                            //suspend recovery task (delete at next cycle)
+                            //resume tasks, commit results and suspend recovery task (delete at next cycle)
                             oTaskResume(pxTCB->redundantStruct.pxTaskValidation);
                             oTaskResume(pxTCB->redundantStruct.pxTaskSUS);
                             pxTCB->redundantStruct.pxRedundantShared->pxCommitFunction(pxTCB->redundantStruct.pxRedundantShared->pxCommitFunctionParameter);
                             oTaskSuspend(NULL);
                         }
                     }
-                
                 taskEXIT_CRITICAL();
             }
         #endif
