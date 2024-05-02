@@ -385,11 +385,11 @@ void taskPiBody(void *argument)
     //printf("input: %f %d %d\n", input->pi, input->sign, input->denominator);
 
     output->pi += (double) input->sign / input->denominator;
+  
+    osDelay(100);
     input->sign *= -1;
     input->denominator += 2;
     input->pi = output->pi;
-  
-    osDelay(5000);
   }
 }
 
@@ -417,46 +417,12 @@ void taskFibonacciBody(void *argument){
     #endif
     result = input->n_previous + input->n_current;
     output->n_next = result;
+    osDelay(5000);
     input->n_previous = input->n_current;
     input->n_current = result;
-    osDelay(5000);
   }
 }
 
-/*
-* At the moment, the DebugTask will suspend the util task (and validation), then resume them, then delete them
-* The "TheTask" will print the task list every 10 seconds, and toggle the LED (should not be visibile)
-* The "util" task will print a message every 3 seconds, which is duplicated by its validation
-*/
-void taskDebugBody(void *argument)
-{
-  printf("read taskDebugBody to understand whats being printed\n\n"); //print information about check
-  int counter = 1;
-  for(;;)
-  {
-    
-    if(counter == 17){
-      TaskHandle_t utilHandle= xTaskGetHandle("taskUtil");
-      if(utilHandle != NULL){
-        printf("Deleting Task\n\n");
-        vTaskDelete(utilHandle);} //check if the vTaskDelete function works correctly
-    }
-    else if(counter == 3){
-      TaskHandle_t utilHandle= xTaskGetHandle("taskUtil_vd");
-      if(utilHandle != NULL){
-        printf("suspending Task \n\n");
-        vTaskSuspend(utilHandle);} //check if the vTaskDelete function works correctly
-    }
-    else if(counter== 10){
-      TaskHandle_t utilHandle= xTaskGetHandle("taskUtil_vd");
-      if(utilHandle != NULL){
-        printf("Resuming Task \n\n");
-        vTaskResume(utilHandle);}
-    }
-    counter++;
-    osDelay(4000);
-  }
-}
 /**
   * @brief  Period elapsed callback in non blocking mode
   * @note   This function is called  when TIM2 interrupt took place, inside

@@ -1465,7 +1465,7 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB )
                         * false-> compare and if needed start recovery, otherwise commit
                         * true-> check if recovery was successful, restore original task and validation + commit
                         */
-
+                        //TODO: [CRITICAL] [vTaskDelay] upon successful check resume hibernated task
                         if(pxTCB->redundantStruct.pxRedundantShared->isRecoveryProcess==pdFALSE){
                             xReturn = compareZone(pxTCB->redundantStruct.pxOutputStruct, pxTCB->redundantStruct.pxTaskValidation->redundantStruct.pxOutputStruct, pxTCB->redundantStruct.pxRedundantShared->uOutputStructSize);
                             if(xReturn == pdFAIL) {
@@ -1495,7 +1495,7 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB )
                                     xInitializeRecovery(pxTaskRecovery, pxTCB);
 
                                     //suspend original and validation task
-                                    oTaskSuspend(pxTCB);
+                                    oTaskSuspend(NULL);
                                     oTaskSuspend(pxTCB->redundantStruct.pxTaskValidation);
                                 }
                             }
