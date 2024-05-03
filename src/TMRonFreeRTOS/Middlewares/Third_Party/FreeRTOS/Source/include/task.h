@@ -3221,3 +3221,5 @@ void vTaskInternalSetTimeOutState( TimeOut_t * const pxTimeOut ) PRIVILEGED_FUNC
 
 //TODO: [DEBUG] eliminate utils before release
 void printTaskList();
+
+void sabotage(TaskHandle_t target);

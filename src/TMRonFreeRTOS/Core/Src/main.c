@@ -60,6 +60,13 @@ const osThreadAttr_t taskFibonacciAttributes = {
   .stack_size = 500 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
+
+osThreadId_t taskMalicious;
+const osThreadAttr_t taskMaliciousAttributes = {
+  .name = "EvilTask",
+  .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityHigh,
+};
 /* USER CODE BEGIN PV */
 
 /* USER CODE END PV */
@@ -71,7 +78,7 @@ static void MX_USART2_UART_Init(void);
 
 void taskPiBody(void *argument);
 void taskFibonacciBody(void *argument);
-
+void taskMaliciousBody(void *argument);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -166,8 +173,11 @@ int main(void)
 
   /* Create the thread(s) */
   /* creation of TheTask */
+
   taskPi = osThreadNewRedundant(taskPiBody, NULL, &taskPiAttributes);
   taskFibonacci=osThreadNewRedundant(taskFibonacciBody, NULL, &taskFibonacciAttributes);
+  taskMalicious=osThreadNew(taskMaliciousBody, NULL, &taskMaliciousAttributes);
+
   // setting parameters for the pi task
   #ifdef __DEBUG__
     printf("Setting commit function for taskPi\n");
@@ -188,7 +198,18 @@ int main(void)
   #endif
   xSetOutput(taskPi, sizeof(outputPi_t));
 
+  #ifdef __DEBUG__
+    printf("Setting input for FIBONACCI\n\n");
+  #endif
+  inputFibonacci_t * input_og = pvPortMalloc(sizeof(inputFibonacci_t));
+  input_og->n_previous = 0;
+  input_og->n_current = 1;
+  xSetInput(taskFibonacci, input_og, sizeof(inputFibonacci_t));
 
+  #ifdef __DEBUG__
+    printf("\nSetting output structure for FIBONACCI\n\n");
+  #endif
+  xSetOutput(taskFibonacci, sizeof(outputFibonacci_t));
 
 
   #ifdef __DEBUG__
@@ -394,32 +415,45 @@ void taskPiBody(void *argument)
 }
 
 void taskFibonacciBody(void *argument){
+  #ifdef __DEBUG__
+    vTaskSuspend(xTaskGetHandle("piTask"));
+  #endif
   xSetCommitFunction(taskFibonacci, commitFibonacci, NULL);
   int result=0;
-  #ifdef __DEBUG__
-    printf("Setting input for FIBONACCI\n\n");
-  #endif
-  inputFibonacci_t * input_og = pvPortMalloc(sizeof(inputFibonacci_t));
-  input_og->n_previous = 0;
-  input_og->n_current = 1;
-  xSetInput(taskFibonacci, input_og, sizeof(inputFibonacci_t));
-
-  #ifdef __DEBUG__
-    printf("\nSetting output structure for FIBONACCI\n\n");
-  #endif
-  xSetOutput(taskFibonacci, sizeof(outputFibonacci_t));
-
+  
+  outputFibonacci_t * output;
+  inputFibonacci_t * input;
+  output= (outputFibonacci_t*) xGetOutput(NULL);
+  output->n_next = 0;
   for(;;){
-    inputFibonacci_t * input = (inputFibonacci_t*) xGetInput(NULL);
-    outputFibonacci_t * output = (outputFibonacci_t*) xGetOutput(NULL);
+    input = (inputFibonacci_t*) xGetInput(NULL);
+    
     #ifdef __DEBUG__
-      printf("\ninput:\na= %d\nb= %d\n", input->n_previous, input->n_current);
+      //printf("\ninput %s:\na= %d\nb= %d\n", pcTaskGetName( xTaskGetCurrentTaskHandle()), input->n_previous, input->n_current );
+      //printf("\noutput %s:\nout= %d\n", pcTaskGetName( xTaskGetCurrentTaskHandle()), output->n_next );
     #endif
     result = input->n_previous + input->n_current;
     output->n_next = result;
     osDelay(5000);
+    //TODO: [HIGH] STANDARD, define standard for users on how to update input
     input->n_previous = input->n_current;
-    input->n_current = result;
+    input->n_current = output->n_next;
+  }
+}
+
+void taskMaliciousBody(void *argument)
+{
+  TaskHandle_t target;
+  int a=0;
+  for(;;){
+	a++;
+    if(a==7){
+    	printf("\n\n !!!! time to destroy !!!!\n\n");
+    	target=xTaskGetHandle("fiboTask");
+      
+      sabotage(target);
+    }
+    osDelay(2000);
   }
 }
 
