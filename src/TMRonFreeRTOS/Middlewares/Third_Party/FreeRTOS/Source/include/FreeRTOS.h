@@ -1158,6 +1158,9 @@
     #if (INCLUDE_vTaskDelay==0 && INCLUDE_vTaskDelayUntil==0)
         #error "INCLUDE_vTaskDelay or INCLUDE_vTaskDelayUntil must be set to 1 to use redundancy"
     #endif
+    #if (INCLUDE_vTaskDelete==0)
+        #error "INCLUDE_vTaskDelete must be set to 1 to use redundancy"
+    #endif
 #endif
 
 
