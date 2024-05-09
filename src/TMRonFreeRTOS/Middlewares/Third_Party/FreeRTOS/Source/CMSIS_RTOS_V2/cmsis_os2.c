@@ -417,7 +417,6 @@ osThreadId_t osThreadNewRedundant (osThreadFunc_t func, void *argument, const os
   uint32_t stack;
   TaskHandle_t hTask;
   UBaseType_t prio;
-  int32_t mem;
 
   hTask = NULL;
 
@@ -427,7 +426,6 @@ osThreadId_t osThreadNewRedundant (osThreadFunc_t func, void *argument, const os
 
     empty = '\0';
     name  = &empty;
-    mem   = -1;
 
     if (attr != NULL) {
       if (attr->name != NULL) {

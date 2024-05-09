@@ -1345,7 +1345,6 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB )
 
 #if ( INCLUDE_xTaskDelayUntil == 1 )
 
-    //TODO: [CRITICAL] [xTaskDelayUntil] modificare come vTaskDelay
     BaseType_t xTaskDelayUntil( TickType_t * const pxPreviousWakeTime,
                                 const TickType_t xTimeIncrement )
     {
@@ -1355,6 +1354,23 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB )
         configASSERT( pxPreviousWakeTime );
         configASSERT( ( xTimeIncrement > 0U ) );
         configASSERT( uxSchedulerSuspended == 0 );
+
+        #if (configUSE_REDUNDANT_TASK == 1)
+            BaseType_t xReturn;
+            TCB_t * pxTCB=prvGetTCBFromHandle(NULL);
+
+            if(pxTCB->isRedundantTask==pdTRUE){
+                taskENTER_CRITICAL();
+                //increase the iteration counter
+                    pxTCB->redundantStruct.iterationCounter++;
+                    // check if the task and it's validation are at the same execution point
+                    if (xTaskAheadStatus() == 0){
+                      xReturn=xRedundancyLogic(pxTCB);
+                      configASSERT(xReturn==pdPASS);  
+                    }
+                taskEXIT_CRITICAL();
+            }
+        #endif
 
         vTaskSuspendAll();
         {
@@ -1481,9 +1497,10 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB )
     void vTaskDelay( const TickType_t xTicksToDelay )
     {
         BaseType_t xAlreadyYielded = pdFALSE;
-        BaseType_t xReturn;
+
         // do this iff the project uses redundancy
         #if (configUSE_REDUNDANT_TASK == 1)
+            BaseType_t xReturn;
             TCB_t * pxTCB=prvGetTCBFromHandle(NULL);
 
             if(pxTCB->isRedundantTask==pdTRUE){
