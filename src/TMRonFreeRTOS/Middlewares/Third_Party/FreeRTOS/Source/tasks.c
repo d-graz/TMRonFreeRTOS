@@ -626,7 +626,14 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB ) PRIVILEGED_FUNCTION;
      * The input struct is copied, the output struct is allocated and the shared values are assigned
      */
     BaseType_t xInitializeRecovery(TCB_t* recovery_tcb, TCB_t* original_tcb, BaseType_t inputFailure);
+
+    /*
+     * Delete allocated memory for redundant tasks
+     */
+    void vFreeRedundant(TCB_t* pxTCB);
 #endif
+
+
 
 #if ( INCLUDE_vTaskSuspend == 1 )
 
@@ -1224,13 +1231,14 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB )
             } else {
                 //delete the validation task
                 if(pxTCB->redundantStruct.pxTaskValidation != NULL){
-                    oTaskDelete(pxTCB->redundantStruct.pxTaskValidation);
+                    oTaskDelete(pxTCB->redundantStruct.pxTaskValidation);   
                 }
                 //delete the control task
                 if(pxTCB->redundantStruct.pxTaskSUS != NULL){
                     oTaskDelete(pxTCB->redundantStruct.pxTaskSUS);
                 }
                 //delete the task
+                vFreeRedundant(pxTCB);
                 oTaskDelete(pxTCB);
             }
         
@@ -1250,8 +1258,11 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB )
 
         taskENTER_CRITICAL();
         {
-            
             pxTCB = xTCBToDelete;
+            #if(configUSE_REDUNDANT_TASK==1)
+                vPortFree(pxTCB->redundantStruct.pxInputStruct);
+                vPortFree(pxTCB->redundantStruct.pxOutputStruct);
+            #endif
 
             /* Remove task from the ready/delayed list. */
             if( uxListRemove( &( pxTCB->xStateListItem ) ) == ( UBaseType_t ) 0 )
@@ -6132,6 +6143,16 @@ static void prvAddCurrentTaskToDelayedList( TickType_t xTicksToWait,
         pxTCB->redundantStruct.pxRedundantShared->pxCommitFunction(pxTCB->redundantStruct.pxRedundantShared->pxCommitFunctionParameter);
         
         return pdPASS;
+    }
+
+    void vFreeRedundant(TCB_t* pxTCB){
+       
+        vPortFree(pxTCB->redundantStruct.pxRedundantShared->pxPreviousInputStruct);
+        vPortFree(pxTCB->redundantStruct.pxRedundantShared->pxCommitFunctionParameter);
+        vPortFree(pxTCB->redundantStruct.pxRedundantShared->pxCommitFunction);
+        vPortFree(pxTCB->redundantStruct.pxRedundantShared->pvParameters);
+        vPortFree(pxTCB->redundantStruct.pxRedundantShared);
+    
     }
 
 #endif
