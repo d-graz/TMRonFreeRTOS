@@ -647,6 +647,7 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB ) PRIVILEGED_FUNCTION;
     void oTaskResume( TaskHandle_t xTaskToSuspend ) PRIVILEGED_FUNCTION;
 #endif
 
+
 /*-----------------------------------------------------------*/
 
 #if ( configSUPPORT_STATIC_ALLOCATION == 1 )
@@ -1727,11 +1728,51 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB )
 /*-----------------------------------------------------------*/
 
 #if ( INCLUDE_vTaskPrioritySet == 1 )
+    /*
+    * Original vTaskPrioritySet function
+    */
+    void oTaskPrioritySet(TCB_t* pxTCB, UBaseType_t uxNewPriority);
 
     void vTaskPrioritySet( TaskHandle_t xTask,
                            UBaseType_t uxNewPriority )
     {
+       //get the TCB from the handle
         TCB_t * pxTCB;
+        pxTCB = prvGetTCBFromHandle( xTask );
+
+        taskENTER_CRITICAL();
+
+        #if (configUSE_REDUNDANT_TASK == 1)
+
+            /* If the task is not redundant just update it
+             * Otherwise, update also the validation and the control task (if present)
+            */
+            if(pxTCB->isRedundantTask == pdFALSE){
+                oTaskPrioritySet(pxTCB, uxNewPriority);
+            } else {
+                //update the validation task priority
+                if(pxTCB->redundantStruct.pxTaskValidation != NULL){
+                    oTaskPrioritySet(pxTCB->redundantStruct.pxTaskValidation, uxNewPriority);
+                }
+                //update the control task priority
+                
+                if(pxTCB->redundantStruct.pxTaskSUS != NULL){
+                    oTaskPrioritySet(pxTCB->redundantStruct.pxTaskSUS, uxNewPriority);
+                }
+                //update the task priority
+                oTaskPrioritySet(pxTCB, uxNewPriority);
+            }
+        
+        #else
+
+            oTaskPrioritySet(pxTCB, uxNewPriority);
+        
+        #endif
+    }
+
+    void oTaskPrioritySet(TCB_t* pxTCB, UBaseType_t uxNewPriority){
+        
+        
         UBaseType_t uxCurrentBasePriority, uxPriorityUsedOnEntry;
         BaseType_t xYieldRequired = pdFALSE;
 
@@ -1751,7 +1792,7 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB )
         {
             /* If null is passed in here then it is the priority of the calling
              * task that is being changed. */
-            pxTCB = prvGetTCBFromHandle( xTask );
+            
 
             traceTASK_PRIORITY_SET( pxTCB, uxNewPriority );
 
@@ -2199,21 +2240,22 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB )
         taskENTER_CRITICAL();
 
         #if (configUSE_REDUNDANT_TASK == 1)
-
             /* Resume the task if not redundant
              * If redundant, resume also validation and SuS task (if present)
             */
             if(pxTCB->isRedundantTask == pdFALSE){
                 oTaskResume(pxTCB);
             } else {
+                /**
+                 * If the task is in recovery process, do not resume it. It will eventually (after recovery) be resumed automatically.
+                */
+                if(pxTCB->redundantStruct.pxRedundantShared->isRecoveryProcess == pdTRUE){
+                    return;
+                }
+                //TODO: [LOW] [vTaskResume] if check should't be needed (validation task should be always present)
                 //resume the validation task
                 if(pxTCB->redundantStruct.pxTaskValidation != NULL){
                     oTaskResume(pxTCB->redundantStruct.pxTaskValidation);
-                }
-                //Resume the control task
-                //TODO: [LOW] [vTaskResume] this should not happen; investigate
-                if(pxTCB->redundantStruct.pxTaskSUS != NULL){
-                    oTaskResume(pxTCB->redundantStruct.pxTaskSUS);
                 }
                 //Resume the task
                 oTaskResume(pxTCB);
