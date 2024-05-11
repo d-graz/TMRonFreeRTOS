@@ -869,7 +869,6 @@ BaseType_t xTaskDelayUntil( TickType_t * const pxPreviousWakeTime,
  * vTaskDelayUntil() is the older version of xTaskDelayUntil() and does not
  * return a value.
  */
-//TODO: [CRITICAL] [vTaskDelayUntil] modificare
 #define vTaskDelayUntil( pxPreviousWakeTime, xTimeIncrement )                   \
     do {                                                                        \
         ( void ) xTaskDelayUntil( ( pxPreviousWakeTime ), ( xTimeIncrement ) ); \
@@ -906,7 +905,6 @@ BaseType_t xTaskDelayUntil( TickType_t * const pxPreviousWakeTime,
  * \defgroup xTaskAbortDelay xTaskAbortDelay
  * \ingroup TaskCtrl
  */
-//TODO: [CRITICAL] [xTaskAbortDelay] modificare
 BaseType_t xTaskAbortDelay( TaskHandle_t xTask ) PRIVILEGED_FUNCTION;
 
 /**
@@ -1091,7 +1089,6 @@ void vTaskGetInfo( TaskHandle_t xTask,
  * \defgroup vTaskPrioritySet vTaskPrioritySet
  * \ingroup TaskCtrl
  */
-//TODO: [CRITICAL] [vTaskPrioritySet] modificare
 void vTaskPrioritySet( TaskHandle_t xTask,
                        UBaseType_t uxNewPriority ) PRIVILEGED_FUNCTION;
 
@@ -1230,7 +1227,7 @@ void vTaskResume( TaskHandle_t xTaskToResume ) PRIVILEGED_FUNCTION;
  * \defgroup vTaskResumeFromISR vTaskResumeFromISR
  * \ingroup TaskCtrl
  */
-//TODO: [CRITICAL] [xTaskResumeFromISR] modificare
+//TODO: [HIGH] [xTaskResumeFromISR] modificare
 BaseType_t xTaskResumeFromISR( TaskHandle_t xTaskToResume ) PRIVILEGED_FUNCTION;
 
 /*-----------------------------------------------------------

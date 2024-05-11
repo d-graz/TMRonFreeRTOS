@@ -1165,8 +1165,17 @@
 
 #ifndef traceTASK_RECOVERY_MODE
 
-/* Called after a task has been selected to run.  pxCurrentTCB holds a pointer
- * to the task control block of the selected task. */
+    /**
+     * Hook called when calling a function that modifies the status of a task
+     * while the task is performing a recovery process.
+     * In this scope a context variable called currentCall is provided to the user
+     * in order to make decisions based upon the current scope of this call.
+     * The available scopes are:
+     * - inSuspend: The task is being suspended.
+     * - inResume: The task is being resumed.
+     * - inDelete: The task is being deleted.
+     * - inPrioritySet: The task priority is being set.
+    */
     extern BaseType_t defaultRecoveryHandler();
     #define traceTASK_RECOVERY_MODE() defaultRecoveryHandler()
 #endif

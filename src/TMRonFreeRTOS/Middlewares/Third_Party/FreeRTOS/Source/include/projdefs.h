@@ -50,6 +50,7 @@ typedef void (* TaskFunction_t)( void * );
 #define inResume                                 ( ( BaseType_t ) 1003 )
 #define inPrioritySet                            ( ( BaseType_t ) 1004 )
 #define notInContext                             ( ( BaseType_t ) 1005 )
+#define inAbortDelay                             ( ( BaseType_t ) 1006 )
 
 #define pdPASS                                   ( pdTRUE )
 #define pdFAIL                                   ( pdFALSE )

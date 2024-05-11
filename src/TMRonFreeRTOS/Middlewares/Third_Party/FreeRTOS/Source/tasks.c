@@ -1224,26 +1224,35 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB )
         taskENTER_CRITICAL();
 
         #if (configUSE_REDUNDANT_TASK == 1)
+            BaseType_t xReturn;
+            currentCall = inDelete;
 
             /* If the task is not redundant just delete it
              * Otherwise, delete also the validation and the control task (if present)
             */
-           //TODO : [HIGH] [vTaskDelete] delete allocated shared struct
             if(pxTCB->isRedundantTask == pdFALSE){
                 oTaskDelete(pxTCB);
             } else {
+                if (pxTCB->redundantStruct.pxRedundantShared->isRecoveryProcess == pdTRUE){
+                    xReturn = traceTASK_RECOVERY_MODE();
+                    if (xReturn == pdFAIL){
+                        currentCall = notInContext;
+                        taskEXIT_CRITICAL();
+                        return;
+                    }
+                    oTaskDelete(pxTCB->redundantStruct.pxTaskSUS);
+                }
+                //TODO: [LOW] [vTaskDelete] check if this is needed (should not)
                 //delete the validation task
                 if(pxTCB->redundantStruct.pxTaskValidation != NULL){
                     oTaskDelete(pxTCB->redundantStruct.pxTaskValidation);   
-                }
-                //delete the control task
-                if(pxTCB->redundantStruct.pxTaskSUS != NULL){
-                    oTaskDelete(pxTCB->redundantStruct.pxTaskSUS);
                 }
                 //delete the task
                 vFreeRedundant(pxTCB);
                 oTaskDelete(pxTCB);
             }
+
+            currentCall = notInContext;
         
         #else
 
@@ -1956,7 +1965,6 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB )
 
         #if (configUSE_REDUNDANT_TASK == 1)
             currentCall = inSuspend;
-            BaseType_t xReturn;
             /* If the task is not redundant just suspend it
              * Otherwise, suspend also the validation and the control task (if present)
             */
@@ -2260,7 +2268,6 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB )
 
         #if (configUSE_REDUNDANT_TASK == 1)
             currentCall = inResume;
-            BaseType_t xReturn;
             /* Resume the task if not redundant
              * If redundant, resume also validation and SuS task (if present)
             */
@@ -2271,12 +2278,9 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB )
                  * If the task is in recovery process, do not resume it. It will eventually (after recovery) be resumed automatically.
                 */
                 if(pxTCB->redundantStruct.pxRedundantShared->isRecoveryProcess == pdTRUE){
-                    xReturn = traceTASK_RECOVERY_MODE();
-                    if (xReturn == pdFAIL) {
-                        currentCall = notInContext;
-                        return;
-                    }
+                    traceTASK_RECOVERY_MODE();
                     currentCall = notInContext;
+                    taskEXIT_CRITICAL();
                     return;
                 }
                 //TODO: [LOW] [vTaskResume] if check should't be needed (validation task should be always present)
@@ -3117,8 +3121,60 @@ BaseType_t xTaskCatchUpTicks( TickType_t xTicksToCatchUp )
 /*----------------------------------------------------------*/
 
 #if ( INCLUDE_xTaskAbortDelay == 1 )
+    /**
+     * Original function of xTaskAbortDelay
+    */
+    BaseType_t oTaskAbortDelay( TaskHandle_t xTask );
 
-    BaseType_t xTaskAbortDelay( TaskHandle_t xTask )
+    BaseType_t xTaskAbortDelay( TaskHandle_t xTask ){
+        TCB_t * pxTCB = xTask;
+        #if ( configUSE_REDUNDANT_TASK == 1)
+
+            taskENTER_CRITICAL();
+
+            currentCall = inAbortDelay;
+            BaseType_t xReturn;
+
+            if (pxTCB->isRedundantTask == pdFALSE) {
+                xReturn = oTaskAbortDelay(xTask);
+                taskEXIT_CRITICAL();
+                return xReturn;
+            } else {
+                if (pxTCB->redundantStruct.pxRedundantShared->isRecoveryProcess == pdTRUE){
+                    xReturn = traceTASK_RECOVERY_MODE();
+                    if (xReturn == pdFAIL){
+                        currentCall = notInContext;
+                        taskEXIT_CRITICAL();
+                        return xReturn;
+                    }
+                    xReturn = oTaskAbortDelay((TaskHandle_t)(pxTCB->redundantStruct.pxTaskSUS));
+                    currentCall = notInContext;
+                    taskEXIT_CRITICAL();
+                    return xReturn;
+                } else {
+                    xReturn = oTaskAbortDelay(xTask);
+                    if (xReturn == pdFAIL){
+                        currentCall = notInContext;
+                        taskEXIT_CRITICAL();
+                        return xReturn;
+                    }
+                    xReturn = oTaskAbortDelay((TaskHandle_t)(pxTCB->redundantStruct.pxTaskValidation));
+                    if (xReturn == pdFAIL){
+                        currentCall = notInContext;
+                        taskEXIT_CRITICAL();
+                        return xReturn;
+                    }
+                }
+                currentCall = notInContext;
+                taskEXIT_CRITICAL();
+                return pdPASS;
+            }
+        #else
+            return oTaskAbortDelay(xTask);
+        #endif
+    }
+
+    BaseType_t oTaskAbortDelay( TaskHandle_t xTask )
     {
         TCB_t * pxTCB = xTask;
         BaseType_t xReturn;
@@ -5924,10 +5980,14 @@ static void prvAddCurrentTaskToDelayedList( TickType_t xTicksToWait,
             xReturn = pdFAIL;
             return xReturn;
         }
-
-        //FIXME: [LOW] possible buffer overflow if pcName is too long
         char pcName_vd[configMAX_TASK_NAME_LEN];
-        sprintf(pcName_vd, "%s_vd", pcName);
+        // safe copy of name + _vd to a task
+        int len = strlen(pcName);
+        if (len >= configMAX_TASK_NAME_LEN - 3) {
+            len = configMAX_TASK_NAME_LEN - 4;
+        }
+        memcpy(pcName_vd, pcName, len);
+        strcpy(pcName_vd + len, "_vd");
         // create a new handle for the validation task
         TaskHandle_t createdTask_vd = NULL;
         xReturn = xTaskCreate( pxTaskCode, pcName_vd, usStackDepth, pvParameters, uxPriority, &createdTask_vd );
@@ -5999,7 +6059,7 @@ static void prvAddCurrentTaskToDelayedList( TickType_t xTicksToWait,
         return pdTRUE;
     }
 
-    //TODO: [LOW] [xGetInput] this function should be called with NULL as parameter
+    //TODO: [LOW] [xGetOutput] this function should be called with NULL as parameter
     void* xGetOutput(TaskHandle_t task){
         TCB_t * tcb;
         tcb = prvGetTCBFromHandle(task);
