@@ -1745,31 +1745,40 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB )
         taskENTER_CRITICAL();
 
         #if (configUSE_REDUNDANT_TASK == 1)
-
+            currentCall = inPrioritySet;
+            BaseType_t xReturn;
             /* If the task is not redundant just update it
              * Otherwise, update also the validation and the control task (if present)
             */
             if(pxTCB->isRedundantTask == pdFALSE){
                 oTaskPrioritySet(pxTCB, uxNewPriority);
             } else {
+                if(pxTCB->redundantStruct.pxRedundantShared->isRecoveryProcess == pdTRUE){
+                    xReturn = traceTASK_RECOVERY_MODE(); 
+                    if(xReturn==pdFAIL){
+                        currentCall = notInContext;
+                        taskEXIT_CRITICAL();
+                        return;
+                    }
+                }
                 //update the validation task priority
                 if(pxTCB->redundantStruct.pxTaskValidation != NULL){
                     oTaskPrioritySet(pxTCB->redundantStruct.pxTaskValidation, uxNewPriority);
                 }
                 //update the control task priority
-                
                 if(pxTCB->redundantStruct.pxTaskSUS != NULL){
                     oTaskPrioritySet(pxTCB->redundantStruct.pxTaskSUS, uxNewPriority);
                 }
                 //update the task priority
                 oTaskPrioritySet(pxTCB, uxNewPriority);
             }
-        
+            currentCall = notInContext;
         #else
 
             oTaskPrioritySet(pxTCB, uxNewPriority);
         
         #endif
+        taskEXIT_CRITICAL();
     }
 
     void oTaskPrioritySet(TCB_t* pxTCB, UBaseType_t uxNewPriority){
