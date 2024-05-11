@@ -3215,6 +3215,11 @@ void vTaskInternalSetTimeOutState( TimeOut_t * const pxTimeOut ) PRIVILEGED_FUNC
    //TODO: [LOW] [xTaskAheadStatus] idea: modificare questa funzione che ti ritorna 1 se il task è avanti o indietro e 0 se sono pari (bisogna vedere se può funzionare)
     BaseType_t xTaskAheadStatus();
 
+    /**
+     * Default implementation during vTask* calls when the target task is in recovery mode
+    */
+    BaseType_t defaultRecoveryHandler();
+
 #endif
 
 //UTILS

@@ -631,6 +631,8 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB ) PRIVILEGED_FUNCTION;
      * Delete allocated memory for redundant tasks
      */
     void vFreeRedundant(TCB_t* pxTCB);
+
+    BaseType_t currentCall = notInContext;
 #endif
 
 
@@ -1944,25 +1946,33 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB )
         taskENTER_CRITICAL();
 
         #if (configUSE_REDUNDANT_TASK == 1)
-
+            currentCall = inSuspend;
+            BaseType_t xReturn;
             /* If the task is not redundant just suspend it
              * Otherwise, suspend also the validation and the control task (if present)
             */
             if(pxTCB->isRedundantTask == pdFALSE){
                 oTaskSuspend(pxTCB);
             } else {
+
+                if (pxTCB->redundantStruct.pxRedundantShared->isRecoveryProcess == pdTRUE) {
+                    traceTASK_RECOVERY_MODE();
+                    currentCall = notInContext;
+                    taskEXIT_CRITICAL();
+                    return;
+                }
+
+                //TODO: [LOW] [vTaskSuspend] this should not be verified
                 //suspend the validation task
                 if(pxTCB->redundantStruct.pxTaskValidation != NULL){
                     oTaskSuspend(pxTCB->redundantStruct.pxTaskValidation);
                 }
-                //suspend the control task
-                //TODO: [LOW] [vTaskSuspend] this should not happen; investigate
-                if(pxTCB->redundantStruct.pxTaskSUS != NULL){
-                    oTaskSuspend(pxTCB->redundantStruct.pxTaskSUS);
-                }
+
                 //suspend the task
                 oTaskSuspend(pxTCB);
             }
+
+            currentCall = notInContext;
         
         #else
 
@@ -2240,6 +2250,8 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB )
         taskENTER_CRITICAL();
 
         #if (configUSE_REDUNDANT_TASK == 1)
+            currentCall = inResume;
+            BaseType_t xReturn;
             /* Resume the task if not redundant
              * If redundant, resume also validation and SuS task (if present)
             */
@@ -2250,6 +2262,12 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB )
                  * If the task is in recovery process, do not resume it. It will eventually (after recovery) be resumed automatically.
                 */
                 if(pxTCB->redundantStruct.pxRedundantShared->isRecoveryProcess == pdTRUE){
+                    xReturn = traceTASK_RECOVERY_MODE();
+                    if (xReturn == pdFAIL) {
+                        currentCall = notInContext;
+                        return;
+                    }
+                    currentCall = notInContext;
                     return;
                 }
                 //TODO: [LOW] [vTaskResume] if check should't be needed (validation task should be always present)
@@ -2260,6 +2278,8 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB )
                 //Resume the task
                 oTaskResume(pxTCB);
             }
+
+            currentCall = notInContext;
 
         #else
 
@@ -6195,6 +6215,13 @@ static void prvAddCurrentTaskToDelayedList( TickType_t xTicksToWait,
         vPortFree(pxTCB->redundantStruct.pxRedundantShared->pvParameters);
         vPortFree(pxTCB->redundantStruct.pxRedundantShared);
     
+    }
+
+    BaseType_t defaultRecoveryHandler(){
+        if (currentCall == inSuspend){
+            return pdFAIL;
+        }
+        return pdPASS;
     }
 
 #endif

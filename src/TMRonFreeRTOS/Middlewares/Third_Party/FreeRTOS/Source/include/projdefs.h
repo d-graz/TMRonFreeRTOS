@@ -45,6 +45,12 @@ typedef void (* TaskFunction_t)( void * );
 #define pdFALSE                                  ( ( BaseType_t ) 0 )
 #define pdTRUE                                   ( ( BaseType_t ) 1 )
 
+#define inSuspend                                ( ( BaseType_t ) 1001 )
+#define inDelete                                 ( ( BaseType_t ) 1002 )
+#define inResume                                 ( ( BaseType_t ) 1003 )
+#define inPrioritySet                            ( ( BaseType_t ) 1004 )
+#define notInContext                             ( ( BaseType_t ) 1005 )
+
 #define pdPASS                                   ( pdTRUE )
 #define pdFAIL                                   ( pdFALSE )
 #define errQUEUE_EMPTY                           ( ( BaseType_t ) 0 )

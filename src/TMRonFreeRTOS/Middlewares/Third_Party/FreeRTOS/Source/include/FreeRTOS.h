@@ -1163,6 +1163,14 @@
     #endif
 #endif
 
+#ifndef traceTASK_RECOVERY_MODE
+
+/* Called after a task has been selected to run.  pxCurrentTCB holds a pointer
+ * to the task control block of the selected task. */
+    extern BaseType_t defaultRecoveryHandler();
+    #define traceTASK_RECOVERY_MODE() defaultRecoveryHandler()
+#endif
+
 
 /* Sometimes the FreeRTOSConfig.h settings only allow a task to be created using
  * dynamically allocated RAM, in which case when any task is deleted it is known
