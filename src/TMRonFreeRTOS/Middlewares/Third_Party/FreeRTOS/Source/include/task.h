@@ -3217,6 +3217,8 @@ void vTaskInternalSetTimeOutState( TimeOut_t * const pxTimeOut ) PRIVILEGED_FUNC
     */
     BaseType_t defaultRecoveryHandler();
 
+    //TODO: [CRITICAL] scrivere una funzione che permetta all'utente di settare un input per il task a runtime
+
 #endif
 
 //UTILS

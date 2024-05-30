@@ -1495,7 +1495,7 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB )
                 memcpy(recovery_tcb->redundantStruct.pxInputStruct, original_tcb->redundantStruct.pxInputStruct, original_tcb->redundantStruct.pxRedundantShared->uInputStructSize);
                 recovery_tcb->redundantStruct.iterationCounter=original_tcb->redundantStruct.iterationCounter - 1;
             } else {
-                memcpy(recovery_tcb->redundantStruct.pxInputStruct, original_tcb->redundantStruct.pxRedundantShared->pxPreviousInputStruct, original_tcb->redundantStruct.pxRedundantShared->uInputStructSize);
+                memcpy(recovery_tcb->redundantStruct.pxInputStruct, original_tcb->redundantStruct.pxRedundantShared->pxSharedInputStruct, original_tcb->redundantStruct.pxRedundantShared->uInputStructSize);
                 recovery_tcb->redundantStruct.iterationCounter=original_tcb->redundantStruct.iterationCounter - 2;
             }
             
@@ -6019,12 +6019,13 @@ static void prvAddCurrentTaskToDelayedList( TickType_t xTicksToWait,
         pxRedundantShared->isRecoveryProcess = pdFALSE;
         pxRedundantShared->pxCommitFunction = NULL;
         pxRedundantShared->pxCommitFunctionParameter = NULL;
-        pxRedundantShared->pxPreviousInputStruct = NULL;
+        pxRedundantShared->pxSharedInputStruct = NULL;
         pxRedundantShared->uInputStructSize = 0;
         pxRedundantShared->uOutputStructSize = 0;
         pxRedundantShared->taskCode = pxTaskCode;
         pxRedundantShared->stackDepth = usStackDepth;
         pxRedundantShared->pvParameters = pvParameters;
+        pxRedundantShared->pxCommitInputStruct = NULL;
 
         //linking the shared struct to the tasks
         tcb_createdTask->redundantStruct.pxRedundantShared = pxRedundantShared;
@@ -6086,7 +6087,7 @@ static void prvAddCurrentTaskToDelayedList( TickType_t xTicksToWait,
         if (pxStruct != NULL) {
             memcpy(tcb->redundantStruct.pxTaskValidation->redundantStruct.pxInputStruct, pxStruct, uxSize);
         }
-        xReturn = xSetStruct(NULL, uxSize, &(tcb->redundantStruct.pxRedundantShared->pxPreviousInputStruct)); /* Allocates space for the previous (shared) input*/
+        xReturn = xSetStruct(NULL, uxSize, &(tcb->redundantStruct.pxRedundantShared->pxSharedInputStruct)); /* Allocates space for the previous (shared) input*/
         return xReturn;
     }
 
@@ -6194,8 +6195,20 @@ static void prvAddCurrentTaskToDelayedList( TickType_t xTicksToWait,
             oTaskResume(pxTCB->redundantStruct.pxTaskValidation);
         }
 
+        // fetch the external input
+        if(pxTCB->redundantStruct.pxRedundantShared->pxCommitInputStruct != NULL){
+            memcpy(pxTCB->redundantStruct.pxInputStruct, pxTCB->redundantStruct.pxRedundantShared->pxCommitInputStruct, pxTCB->redundantStruct.pxRedundantShared->uInputStructSize);
+            memcpy(pxTCB->redundantStruct.pxTaskValidation->redundantStruct.pxInputStruct, pxTCB->redundantStruct.pxRedundantShared->pxCommitInputStruct, pxTCB->redundantStruct.pxRedundantShared->uInputStructSize);
+            memcpy(pxTCB->redundantStruct.pxRedundantShared->pxSharedInputStruct, pxTCB->redundantStruct.pxRedundantShared->pxCommitInputStruct, pxTCB->redundantStruct.pxRedundantShared->uInputStructSize);
+            vPortFree(pxTCB->redundantStruct.pxRedundantShared->pxCommitInputStruct);
+            pxTCB->redundantStruct.pxRedundantShared->pxCommitInputStruct = NULL;
+        } else {
+            //TODO: [CRITICAL] [xRedundancyLogic] inserire qui la procedura di update dell'input
+        }
+
         //update previous input
-        memcpy(pxTCB->redundantStruct.pxRedundantShared->pxPreviousInputStruct, pxTCB->redundantStruct.pxInputStruct, pxTCB->redundantStruct.pxRedundantShared->uInputStructSize);
+        //TODO: [CRITICAL] [xRedundancyLogic] capire se questo serve
+        memcpy(pxTCB->redundantStruct.pxRedundantShared->pxSharedInputStruct, pxTCB->redundantStruct.pxInputStruct, pxTCB->redundantStruct.pxRedundantShared->uInputStructSize);
 
         return pdPASS;
     }
@@ -6205,34 +6218,39 @@ static void prvAddCurrentTaskToDelayedList( TickType_t xTicksToWait,
             printf("DEBUG: [vTaskDelay] - starting recovery process\n\n");
         #endif
         // check if the input matches
-        BaseType_t xReturn, inputFailure;
+        BaseType_t xReturn;
         
         xReturn = compareZone(pxTCB->redundantStruct.pxInputStruct, pxTCB->redundantStruct.pxTaskValidation->redundantStruct.pxInputStruct, pxTCB->redundantStruct.pxRedundantShared->uInputStructSize);
         if (xReturn == pdPASS){
-            #ifdef __DEBUG__
-                printf("DEBUG: [vTaskDelay] - input of tasks are the same\n");
-            #endif
+            // create the recovery task
+            xReturn = createRecoveryTask(pxTCB, pdFALSE);
+            configASSERT(xReturn == pdPASS);
 
-            inputFailure = pdFALSE;
+            //suspend the tasks
+            oTaskSuspend(pxTCB->redundantStruct.pxTaskValidation);
+            oTaskSuspend(NULL);
+            return pdPASS;
         } else {
             #ifdef __DEBUG__
                 printf("DEBUG: [vTaskDelay] - input mismatch\n");
             #endif
-            inputFailure = pdTRUE;
+            xReturn = compareZone(pxTCB->redundantStruct.pxInputStruct, pxTCB->redundantStruct.pxRedundantShared->pxSharedInputStruct, pxTCB->redundantStruct.pxRedundantShared->uInputStructSize);
+            if (xReturn == pdPASS){
+                xTaskRestore(pxTCB, pxTCB->redundantStruct.pxTaskValidation);
+            } else {
+                xReturn = compareZone(pxTCB->redundantStruct.pxTaskValidation->redundantStruct.pxInputStruct, pxTCB->redundantStruct.pxRedundantShared->pxSharedInputStruct, pxTCB->redundantStruct.pxRedundantShared->uInputStructSize);
+                if (xReturn == pdPASS){
+                    xTaskRestore(pxTCB->redundantStruct.pxTaskValidation, pxTCB);
+                } else {
+                    return pdFAIL;
+                }
+            }
         }
-
-        //suspend the tasks
-
-        // create the recovery task
-        xReturn = createRecoveryTask(pxTCB, inputFailure);
-        configASSERT(xReturn == pdPASS);
-
-        //suspend the tasks
-        oTaskSuspend(pxTCB->redundantStruct.pxTaskValidation);
-        oTaskSuspend(NULL);
         return pdPASS;
+        
     }
 
+    //TODO: [LOW] [createRecoveryTask] parameter inputFailure should be removed
     BaseType_t createRecoveryTask(TCB_t * pxTCB, BaseType_t inputFailure){
         //create a new task
         TaskHandle_t createdTask = NULL;
@@ -6270,7 +6288,7 @@ static void prvAddCurrentTaskToDelayedList( TickType_t xTicksToWait,
         oTaskSuspend(NULL);
 
         //commit output and copy previous input
-        memcpy(pxTCB->redundantStruct.pxRedundantShared->pxPreviousInputStruct, pxTCB->redundantStruct.pxInputStruct, pxTCB->redundantStruct.pxRedundantShared->uInputStructSize);
+        memcpy(pxTCB->redundantStruct.pxRedundantShared->pxSharedInputStruct, pxTCB->redundantStruct.pxInputStruct, pxTCB->redundantStruct.pxRedundantShared->uInputStructSize);
         pxTCB->redundantStruct.pxRedundantShared->pxCommitFunction(pxTCB->redundantStruct.pxRedundantShared->pxCommitFunctionParameter);
         
         return pdPASS;
@@ -6278,10 +6296,11 @@ static void prvAddCurrentTaskToDelayedList( TickType_t xTicksToWait,
 
     void vFreeRedundant(TCB_t* pxTCB){
        
-        vPortFree(pxTCB->redundantStruct.pxRedundantShared->pxPreviousInputStruct);
+        vPortFree(pxTCB->redundantStruct.pxRedundantShared->pxSharedInputStruct);
         vPortFree(pxTCB->redundantStruct.pxRedundantShared->pxCommitFunctionParameter);
         vPortFree(pxTCB->redundantStruct.pxRedundantShared->pxCommitFunction);
         vPortFree(pxTCB->redundantStruct.pxRedundantShared->pvParameters);
+        vPortFree(pxTCB->redundantStruct.pxRedundantShared->pxCommitInputStruct);
         vPortFree(pxTCB->redundantStruct.pxRedundantShared);
     
     }

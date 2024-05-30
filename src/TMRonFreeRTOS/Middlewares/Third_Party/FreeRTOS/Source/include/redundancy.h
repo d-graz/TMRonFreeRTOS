@@ -4,13 +4,14 @@
     typedef struct xRedundantShared {
         void (*pxCommitFunction)(void*);               /*< Used for the commit function of the task. */
         void *pxCommitFunctionParameter;               /*< Used for the parameter of the commit function of the task. */
-        void * pxPreviousInputStruct;                  /*< Input at t-1 for task. */
+        void * pxSharedInputStruct;                  /*< Input at t-1 for task. */
         UBaseType_t uInputStructSize;                  /*< Used for the size of the input structure of the task. */
         UBaseType_t uOutputStructSize;                 /*< Used for the size of the output structure of the task. */
         BaseType_t isRecoveryProcess;                  /*< Used for the recovery process of the task. */
         TaskFunction_t taskCode;                       /*< Used for the task code of the task. */
         uint32_t stackDepth;                           /*< Used for the stack depth of the task. */
         void * pvParameters;                           /*< Used for the parameters of the task. */
+        void * pxCommitInputStruct;                    /*< Used for the changing of the input structure from another task. */
     } xRedundantShared_t;
 
     typedef struct xRedundantStruct {
