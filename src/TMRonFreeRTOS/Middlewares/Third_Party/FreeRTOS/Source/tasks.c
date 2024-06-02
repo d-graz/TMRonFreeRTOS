@@ -6060,10 +6060,9 @@ static void prvAddCurrentTaskToDelayedList( TickType_t xTicksToWait,
         return pdTRUE;
     }
 
-    //TODO: [LOW] [xGetOutput] this function should be called with NULL as parameter
-    void* xGetOutput(TaskHandle_t task){
+    void* xGetOutput(){
         TCB_t * tcb;
-        tcb = prvGetTCBFromHandle(task);
+        tcb = prvGetTCBFromHandle(NULL);
         configASSERT(tcb->isRedundantTask == pdTRUE); /* Checks that the task is actually a redundant one*/
         return tcb->redundantStruct.pxOutputStruct;
     }
@@ -6091,10 +6090,9 @@ static void prvAddCurrentTaskToDelayedList( TickType_t xTicksToWait,
         return xReturn;
     }
 
-    //TODO: [LOW] [xGetInput] this function should be called with NULL as parameter
-    void* xGetInput(TaskHandle_t task){
+    void* xGetInput(){
         TCB_t * tcb;
-        tcb = prvGetTCBFromHandle(task);
+        tcb = prvGetTCBFromHandle(NULL);
         configASSERT(tcb->isRedundantTask == pdTRUE); /* Checks that the task is actually a redundant one*/
         return tcb->redundantStruct.pxInputStruct;
     }
