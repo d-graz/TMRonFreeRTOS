@@ -475,6 +475,10 @@ void taskMaliciousBody(void *argument)
     	target=xTaskGetHandle("fiboTask");
       
       sabotage(target);
+    } else if (a == 15) {
+      target=xTaskGetHandle("fiboTask");
+      inputFibonacci_t structura = {0, 1};
+      xSetTaskInput(target, &structura);
     }
     osDelay(2000);
   }
