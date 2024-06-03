@@ -3162,8 +3162,9 @@ void vTaskInternalSetTimeOutState( TimeOut_t * const pxTimeOut ) PRIVILEGED_FUNC
     */
     void* xGetOutput();
 
-    //TODO: [CRITICAL] [xGetTaskOutput] idea: creare questa funzione che ritorna l'output struct di una task all' ultimo commit
-    // per fare questo bisogna creare una struttura dati che contenga l'output struct del commit
+    /*
+     * Returns the output zone of a task (at previous commit)
+    */
     void* xGetTaskOutput(TaskHandle_t task);
 
     /*
@@ -3178,7 +3179,9 @@ void vTaskInternalSetTimeOutState( TimeOut_t * const pxTimeOut ) PRIVILEGED_FUNC
     */
     void* xGetInput();
 
-    //TODO: [CRITICAL] [xGetTaskInput] idea: creare questa funzione che ritorna l'input struct di una task
+    /**
+     * Returns the input zone of a task (at previous commit)
+    */
     void* xGetTaskInput(TaskHandle_t task);
 
     /*
@@ -3206,8 +3209,15 @@ void vTaskInternalSetTimeOutState( TimeOut_t * const pxTimeOut ) PRIVILEGED_FUNC
     */
     BaseType_t defaultRecoveryHandler();
 
-    //TODO: [CRITICAL] scrivere una funzione che permetta all'utente di settare un input per il task a runtime
+    /**
+     * Sets the next input of a task from an external scope.
+    */
     void xSetTaskInput(TaskHandle_t task, void* pxStruct);
+
+    /**
+     * Set the update rule of the input for a task.
+    */
+    void xSetUpdateRule(TaskHandle_t task, xUpdateInput pxUpdateInput);
 
 #endif
 

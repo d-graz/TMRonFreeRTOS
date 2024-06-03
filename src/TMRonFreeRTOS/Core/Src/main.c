@@ -78,6 +78,10 @@ static void MX_USART2_UART_Init(void);
 
 void taskPiBody(void *argument);
 void taskFibonacciBody(void *argument);
+
+void updatePi(void *input, void *output);
+void updateFibonacci(void *input, void *output);
+
 void taskMaliciousBody(void *argument);
 /* USER CODE BEGIN PFP */
 
@@ -114,13 +118,28 @@ typedef struct outputFibonacci {
 
 
 void commitPi(){
-  outputPi_t * output = (outputPi_t*) xGetOutput(NULL);
+  outputPi_t * output = (outputPi_t*) xGetOutput();
   printf("Pi: %f\n", output->pi * 4);
 }
 
 void commitFibonacci(){
-  outputFibonacci_t * output = (outputFibonacci_t*) xGetOutput(NULL);
+  outputFibonacci_t * output = (outputFibonacci_t*) xGetOutput();
   printf("output FIBONACCI [COMMIT] : %d\n", output->n_next);
+}
+
+void updatePi(void *input, void *output){
+  inputPi_t * input_og = (inputPi_t*) input;
+  outputPi_t * output_og = (outputPi_t*) output;
+  input_og->sign *= -1;
+  input_og->denominator += 2;
+  input_og->pi = output_og->pi;
+}
+
+void updateFibonacci(void *input, void *output){
+  inputFibonacci_t * input_og = (inputFibonacci_t*) input;
+  outputFibonacci_t * output_og = (outputFibonacci_t*) output;
+  input_og->n_previous = input_og->n_current;
+  input_og->n_current = output_og->n_next;
 }
 
 int main(void)
@@ -194,6 +213,11 @@ int main(void)
   xSetInput(taskPi, input, sizeof(inputPi_t));
 
   #ifdef __DEBUG__
+    printf("Setting update rule taskPi\n");
+  #endif
+  xSetUpdateRule(taskPi, updatePi);
+
+  #ifdef __DEBUG__
     printf("Setting output structure\n");
   #endif
   xSetOutput(taskPi, sizeof(outputPi_t));
@@ -210,6 +234,11 @@ int main(void)
     printf("\nSetting output structure for FIBONACCI\n\n");
   #endif
   xSetOutput(taskFibonacci, sizeof(outputFibonacci_t));
+
+  #ifdef __DEBUG__
+    printf("Setting update rule for FIBONACCI\n\n");
+  #endif
+  xSetUpdateRule(taskFibonacci, updateFibonacci);
 
 
   #ifdef __DEBUG__
@@ -407,10 +436,7 @@ void taskPiBody(void *argument)
 
     output->pi += (double) input->sign / input->denominator;
   
-    osDelay(100);
-    input->sign *= -1;
-    input->denominator += 2;
-    input->pi = output->pi;
+    osDelay(1000);
   }
 }
 
@@ -435,9 +461,6 @@ void taskFibonacciBody(void *argument){
     result = input->n_previous + input->n_current;
     output->n_next = result;
     osDelay(5000);
-    //TODO: [HIGH] STANDARD, define standard for users on how to update input
-    input->n_previous = input->n_current;
-    input->n_current = output->n_next;
   }
 }
 

@@ -6026,6 +6026,8 @@ static void prvAddCurrentTaskToDelayedList( TickType_t xTicksToWait,
         pxRedundantShared->stackDepth = usStackDepth;
         pxRedundantShared->pvParameters = pvParameters;
         pxRedundantShared->pxCommitInputStruct = NULL;
+        pxRedundantShared->pxSharedOutputStruct = NULL;
+        pxRedundantShared->pxUpdateInput = NULL;
 
         //linking the shared struct to the tasks
         tcb_createdTask->redundantStruct.pxRedundantShared = pxRedundantShared;
@@ -6054,6 +6056,10 @@ static void prvAddCurrentTaskToDelayedList( TickType_t xTicksToWait,
             return pdFALSE; /* Return pdFALSE if memory allocation failed */
         }
         xReturn = xSetStruct(NULL, uxSize, &(tcb->redundantStruct.pxTaskValidation->redundantStruct.pxOutputStruct)); /* Allocates spaces in the validation task for the output*/
+        if (xReturn == pdFALSE) {
+            return pdFALSE; /* Return pdFALSE if memory allocation failed */
+        }
+        xReturn = xSetStruct(NULL, uxSize, &(tcb->redundantStruct.pxRedundantShared->pxSharedOutputStruct)); /* Allocates space for the previous (shared) output*/
         if (xReturn == pdFALSE) {
             return pdFALSE; /* Return pdFALSE if memory allocation failed */
         }
@@ -6185,6 +6191,9 @@ static void prvAddCurrentTaskToDelayedList( TickType_t xTicksToWait,
             printf("\nDEBUG: [vTaskDelay] - Output of tasks are the same\n");
         #endif
 
+        //update the output from the task to the shared task control block
+        memcpy(pxTCB->redundantStruct.pxRedundantShared->pxSharedOutputStruct, pxTCB->redundantStruct.pxOutputStruct, pxTCB->redundantStruct.pxRedundantShared->uOutputStructSize);
+
         //commit output
         pxTCB->redundantStruct.pxRedundantShared->pxCommitFunction(pxTCB->redundantStruct.pxRedundantShared->pxCommitFunctionParameter);
 
@@ -6201,12 +6210,12 @@ static void prvAddCurrentTaskToDelayedList( TickType_t xTicksToWait,
             vPortFree(pxTCB->redundantStruct.pxRedundantShared->pxCommitInputStruct);
             pxTCB->redundantStruct.pxRedundantShared->pxCommitInputStruct = NULL;
         } else {
-            //TODO: [CRITICAL] [xRedundancyLogic] inserire qui la procedura di update dell'input
-        }
 
-        //update previous input
-        //TODO: [CRITICAL] [xRedundancyLogic] capire se questo serve
-        memcpy(pxTCB->redundantStruct.pxRedundantShared->pxSharedInputStruct, pxTCB->redundantStruct.pxInputStruct, pxTCB->redundantStruct.pxRedundantShared->uInputStructSize);
+            // call the update rule definded by the user
+            pxTCB->redundantStruct.pxRedundantShared->pxUpdateInput(pxTCB->redundantStruct.pxInputStruct, pxTCB->redundantStruct.pxOutputStruct);
+            pxTCB->redundantStruct.pxRedundantShared->pxUpdateInput(pxTCB->redundantStruct.pxTaskValidation->redundantStruct.pxInputStruct, pxTCB->redundantStruct.pxTaskValidation->redundantStruct.pxOutputStruct);
+            pxTCB->redundantStruct.pxRedundantShared->pxUpdateInput(pxTCB->redundantStruct.pxRedundantShared->pxSharedInputStruct, pxTCB->redundantStruct.pxRedundantShared->pxSharedOutputStruct);
+        }
 
         return pdPASS;
     }
@@ -6299,6 +6308,7 @@ static void prvAddCurrentTaskToDelayedList( TickType_t xTicksToWait,
         vPortFree(pxTCB->redundantStruct.pxRedundantShared->pxCommitFunction);
         vPortFree(pxTCB->redundantStruct.pxRedundantShared->pvParameters);
         vPortFree(pxTCB->redundantStruct.pxRedundantShared->pxCommitInputStruct);
+        vPortFree(pxTCB->redundantStruct.pxRedundantShared->pxSharedOutputStruct);
         vPortFree(pxTCB->redundantStruct.pxRedundantShared);
     
     }
@@ -6308,6 +6318,34 @@ static void prvAddCurrentTaskToDelayedList( TickType_t xTicksToWait,
             return pdFAIL;
         }
         return pdPASS;
+    }
+
+    void* xGetTaskOutput(TaskHandle_t task){
+        TCB_t * tcb;
+        tcb = prvGetTCBFromHandle(task);
+        configASSERT(tcb->isRedundantTask == pdTRUE); /* Checks that the task is actually a redundant one*/
+        return tcb->redundantStruct.pxRedundantShared->pxSharedOutputStruct;
+    }
+
+    void* xGetTaskInput(TaskHandle_t task){
+        TCB_t * tcb;
+        tcb = prvGetTCBFromHandle(task);
+        configASSERT(tcb->isRedundantTask == pdTRUE); /* Checks that the task is actually a redundant one*/
+        return tcb->redundantStruct.pxRedundantShared->pxSharedInputStruct;
+    }
+
+    void xSetTaskInput(TaskHandle_t task, void* pxStruct){
+        TCB_t * tcb;
+        tcb = prvGetTCBFromHandle(task);
+        configASSERT(tcb->isRedundantTask == pdTRUE); /* Checks that the task is actually a redundant one*/
+        memcpy(tcb->redundantStruct.pxRedundantShared->pxCommitInputStruct, pxStruct, tcb->redundantStruct.pxRedundantShared->uInputStructSize);
+    }
+
+    void xSetUpdateRule(TaskHandle_t task, xUpdateInput pxUpdateInput){
+        TCB_t * tcb;
+        tcb = prvGetTCBFromHandle(task);
+        configASSERT(tcb->isRedundantTask == pdTRUE); /* Checks that the task is actually a redundant one*/
+        tcb->redundantStruct.pxRedundantShared->pxUpdateInput = pxUpdateInput;
     }
 
 #endif

@@ -1,6 +1,8 @@
 #ifndef __REDUNDANCY__
 #define __REDUNDANCY__
 #if ( configUSE_REDUNDANT_TASK == 1)
+    typedef void (*xUpdateInput)(void*, void*);      /*< Used for the update input function of the task. */
+
     typedef struct xRedundantShared {
         void (*pxCommitFunction)(void*);               /*< Used for the commit function of the task. */
         void *pxCommitFunctionParameter;               /*< Used for the parameter of the commit function of the task. */
@@ -12,6 +14,8 @@
         uint32_t stackDepth;                           /*< Used for the stack depth of the task. */
         void * pvParameters;                           /*< Used for the parameters of the task. */
         void * pxCommitInputStruct;                    /*< Used for the changing of the input structure from another task. */
+        void * pxSharedOutputStruct;                  /*< Output of the task at last commit. */
+        xUpdateInput pxUpdateInput;                  /*< Used for the update input function of the task. */
     } xRedundantShared_t;
 
     typedef struct xRedundantStruct {
