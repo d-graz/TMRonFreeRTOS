@@ -1161,6 +1161,9 @@
     #if (INCLUDE_vTaskDelete==0)
         #error "INCLUDE_vTaskDelete must be set to 1 to use redundancy"
     #endif
+    #if (INCLUDE_vTaskSuspend==0)
+        #error "INCLUDE_vTaskSuspend must be set to 1 to use redundancy"
+    #endif
 #endif
 
 #ifndef traceTASK_RECOVERY_MODE

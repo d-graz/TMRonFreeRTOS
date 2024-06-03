@@ -696,7 +696,7 @@ typedef enum
  * \defgroup vTaskAllocateMPURegions vTaskAllocateMPURegions
  * \ingroup Tasks
  */
-//TODO: [MEDIUM] [vTaskAllocateMPURegions] : check if it's beyond the scope of the project
+//TODO: [LOW] [ask]
 void vTaskAllocateMPURegions( TaskHandle_t xTask,
                               const MemoryRegion_t * const pxRegions ) PRIVILEGED_FUNCTION;
 
@@ -1593,7 +1593,7 @@ configSTACK_DEPTH_TYPE uxTaskGetStackHighWaterMark2( TaskHandle_t xTask ) PRIVIL
  * Passing xTask as NULL has the effect of setting the calling tasks hook
  * function.
  */
-//TODO: [MEDIUM] limitare usage per task ridondanti.
+//TODO: [LOW] [aks]
         void vTaskSetApplicationTaskTag( TaskHandle_t xTask,
                                          TaskHookFunction_t pxHookFunction ) PRIVILEGED_FUNCTION;
 
@@ -1630,7 +1630,7 @@ configSTACK_DEPTH_TYPE uxTaskGetStackHighWaterMark2( TaskHandle_t xTask ) PRIVIL
  * the pointers for any purpose they wish.  The following two functions are
  * used to set and query a pointer respectively. */
 
-//TODO: [MEDIUM] capire se è nello scope
+//TODO: [LOW] [ask]
     void vTaskSetThreadLocalStoragePointer( TaskHandle_t xTaskToSet,
                                             BaseType_t xIndex,
                                             void * pvValue ) PRIVILEGED_FUNCTION;
@@ -1706,7 +1706,7 @@ configSTACK_DEPTH_TYPE uxTaskGetStackHighWaterMark2( TaskHandle_t xTask ) PRIVIL
  * wants.  The return value is the value returned by the task hook function
  * registered by the user.
  */
-//TODO: [MEDIUM] [xTaskCallApplicationTaskHook] capire se è nello scope
+//TODO: [LOW] [assciato ad altro]
 BaseType_t xTaskCallApplicationTaskHook( TaskHandle_t xTask,
                                          void * pvParameter ) PRIVILEGED_FUNCTION;
 
@@ -3079,7 +3079,7 @@ UBaseType_t uxTaskGetTaskNumber( TaskHandle_t xTask ) PRIVILEGED_FUNCTION;
  * Set the uxTaskNumber of the task referenced by the xTask parameter to
  * uxHandle.
  */
-//TODO: [LOW] [vTaskSetTaskNumber] controllare fattibilità
+//TODO: [VERY LOW] [vTaskSetTaskNumber] ricordarsi di specificare che questa funzione non funziona come da normale previsione
 void vTaskSetTaskNumber( TaskHandle_t xTask,
                          const UBaseType_t uxHandle ) PRIVILEGED_FUNCTION;
 
@@ -3188,7 +3188,6 @@ void vTaskInternalSetTimeOutState( TimeOut_t * const pxTimeOut ) PRIVILEGED_FUNC
     * Suspends a task from an ISR context. 
     * The suspended task is the one that is currently running.
     */
-    //TODO: [LOW] [vTaskSuspendContextSwitch] move this to correct #if enclosure
     void vTaskSuspendContextSwitch();
 
     /*
@@ -3201,7 +3200,6 @@ void vTaskInternalSetTimeOutState( TimeOut_t * const pxTimeOut ) PRIVILEGED_FUNC
      * Returns 0 when task is currently at the same iteration of validation
      * Returns -1 when task is 1 iteration behind validation
     */
-   //TODO: [LOW] [xTaskAheadStatus] idea: modificare questa funzione che ti ritorna 1 se il task è avanti o indietro e 0 se sono pari (bisogna vedere se può funzionare)
     BaseType_t xTaskAheadStatus();
 
     /**
