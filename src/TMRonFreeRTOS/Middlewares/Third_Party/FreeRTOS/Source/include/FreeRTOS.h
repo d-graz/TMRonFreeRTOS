@@ -1164,6 +1164,9 @@
     #if (INCLUDE_vTaskSuspend==0)
         #error "INCLUDE_vTaskSuspend must be set to 1 to use redundancy"
     #endif
+    #ifndef configREDUNDANT_INPUT_CHECK_FREQUENCY
+        #define configREDUNDANT_INPUT_CHECK_FREQUENCY    5
+    #endif
 #endif
 
 #ifndef traceTASK_RECOVERY_MODE

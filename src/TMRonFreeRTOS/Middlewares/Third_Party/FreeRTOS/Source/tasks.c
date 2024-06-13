@@ -6221,6 +6221,23 @@ static void prvAddCurrentTaskToDelayedList( TickType_t xTicksToWait,
             pxTCB->redundantStruct.pxRedundantShared->pxUpdateInput(pxTCB->redundantStruct.pxInputStruct, pxTCB->redundantStruct.pxOutputStruct);
             pxTCB->redundantStruct.pxRedundantShared->pxUpdateInput(pxTCB->redundantStruct.pxTaskValidation->redundantStruct.pxInputStruct, pxTCB->redundantStruct.pxTaskValidation->redundantStruct.pxOutputStruct);
             pxTCB->redundantStruct.pxRedundantShared->pxUpdateInput(pxTCB->redundantStruct.pxRedundantShared->pxSharedInputStruct, pxTCB->redundantStruct.pxRedundantShared->pxSharedOutputStruct);
+
+            if(pxTCB->redundantStruct.iterationCounter % configREDUNDANT_INPUT_CHECK_FREQUENCY == 0) {
+                xReturn = compareZone(pxTCB->redundantStruct.pxInputStruct, pxTCB->redundantStruct.pxRedundantShared->pxSharedInputStruct, pxTCB->redundantStruct.pxRedundantShared->uInputStructSize);
+                if (xReturn == pdFAIL){
+                    xReturn = compareZone(pxTCB->redundantStruct.pxTaskValidation->redundantStruct.pxInputStruct, pxTCB->redundantStruct.pxRedundantShared->pxSharedInputStruct, pxTCB->redundantStruct.pxRedundantShared->uInputStructSize);
+                    if (xReturn == pdFAIL) {
+                        xReturn = compareZone(pxTCB->redundantStruct.pxTaskValidation->redundantStruct.pxInputStruct, pxTCB->redundantStruct.pxInputStruct, pxTCB->redundantStruct.pxRedundantShared->uInputStructSize);
+                        if (xReturn == pdFAIL) {
+                            return pdFAIL;
+                        } else {
+                            memcpy(pxTCB->redundantStruct.pxRedundantShared->pxSharedInputStruct, pxTCB->redundantStruct.pxInputStruct, pxTCB->redundantStruct.pxRedundantShared->uInputStructSize);
+                        }
+                    } else {
+                        memcpy(pxTCB->redundantStruct.pxInputStruct, pxTCB->redundantStruct.pxRedundantShared->pxSharedInputStruct, pxTCB->redundantStruct.pxRedundantShared->uInputStructSize);
+                    }
+                }
+            }
         }
 
         return pdPASS;
@@ -6307,8 +6324,7 @@ static void prvAddCurrentTaskToDelayedList( TickType_t xTicksToWait,
         pxTCB->redundantStruct.pxRedundantShared->pxUpdateInput(pxTCB->redundantStruct.pxTaskSUS->redundantStruct.pxInputStruct, pxTCB->redundantStruct.pxTaskSUS->redundantStruct.pxOutputStruct);
         pxTCB->redundantStruct.pxRedundantShared->pxUpdateInput(pxTCB->redundantStruct.pxTaskValidation->redundantStruct.pxInputStruct, pxTCB->redundantStruct.pxTaskValidation->redundantStruct.pxOutputStruct);
         pxTCB->redundantStruct.pxRedundantShared->pxUpdateInput(pxTCB->redundantStruct.pxRedundantShared->pxSharedInputStruct, pxTCB->redundantStruct.pxRedundantShared->pxSharedOutputStruct);
-        //TODO: [CRITICAL] [xRecoveryHandler] modify to check that also the input gets checked
-        
+
         return pdPASS;
     }
 
