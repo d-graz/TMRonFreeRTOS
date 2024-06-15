@@ -3212,11 +3212,6 @@ void vTaskInternalSetTimeOutState( TimeOut_t * const pxTimeOut ) PRIVILEGED_FUNC
     */
     void xSetTaskInput(TaskHandle_t task, void* pxStruct);
 
-    /**
-     * Set the update rule of the input for a task.
-    */
-    void xSetUpdateRule(TaskHandle_t task, xUpdateInput pxUpdateInput);
-
 #endif
 
 //UTILS

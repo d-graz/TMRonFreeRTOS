@@ -72,7 +72,6 @@
 #define configUSE_PORT_OPTIMISED_TASK_SELECTION  0
 #define configNUM_THREAD_LOCAL_STORAGE_POINTERS  5
 #define configUSE_REDUNDANT_TASK                 1
-#define configREDUNDANT_INPUT_CHECK_FREQUENCY    5
 
 /* Co-routine definitions. */
 #define configUSE_CO_ROUTINES                    0

@@ -15,7 +15,6 @@
         void * pvParameters;                           /*< Used for the parameters of the task. */
         void * pxCommitInputStruct;                    /*< Used for the changing of the input structure from another task. */
         void * pxSharedOutputStruct;                  /*< Output of the task at last commit. */
-        xUpdateInput pxUpdateInput;                  /*< Used for the update input function of the task. */
     } xRedundantShared_t;
 
     typedef struct xRedundantStruct {
