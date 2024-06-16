@@ -136,10 +136,7 @@ void updatePi(void *input, void *output){
 }
 
 void updateFibonacci(void *input, void *output){
-  inputFibonacci_t * input_og = (inputFibonacci_t*) input;
-  outputFibonacci_t * output_og = (outputFibonacci_t*) output;
-  input_og->n_previous = input_og->n_current;
-  input_og->n_current = output_og->n_next;
+
 }
 
 int main(void)
@@ -215,7 +212,7 @@ int main(void)
   #ifdef __DEBUG__
     printf("Setting update rule taskPi\n");
   #endif
-  xSetUpdateRule(taskPi, updatePi);
+
 
   #ifdef __DEBUG__
     printf("Setting output structure\n");
@@ -238,7 +235,7 @@ int main(void)
   #ifdef __DEBUG__
     printf("Setting update rule for FIBONACCI\n\n");
   #endif
-  xSetUpdateRule(taskFibonacci, updateFibonacci);
+
 
 
   #ifdef __DEBUG__
@@ -460,6 +457,8 @@ void taskFibonacciBody(void *argument){
     #endif
     result = input->n_previous + input->n_current;
     output->n_next = result;
+    input->n_previous = input->n_current;
+    input->n_current = output->n_next;
     osDelay(5000);
   }
 }
