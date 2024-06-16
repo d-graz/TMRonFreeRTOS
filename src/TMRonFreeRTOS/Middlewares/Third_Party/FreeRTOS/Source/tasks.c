@@ -1504,7 +1504,7 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB )
                 recovery_tcb->redundantStruct.iterationCounter=original_tcb->redundantStruct.iterationCounter - 1;
             } else {
                 memcpy(recovery_tcb->redundantStruct.pxInputStruct, original_tcb->redundantStruct.pxRedundantShared->pxSharedInputStruct, original_tcb->redundantStruct.pxRedundantShared->uInputStructSize);
-                recovery_tcb->redundantStruct.iterationCounter=original_tcb->redundantStruct.iterationCounter - 2;
+                recovery_tcb->redundantStruct.iterationCounter=original_tcb->redundantStruct.iterationCounter - 1;
             }
             
             //allocate memory for the output struct (should be filled during the iteration)
