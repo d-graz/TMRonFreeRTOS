@@ -6366,8 +6366,9 @@ void printTaskList() {
 void sabotage(TaskHandle_t task) {
     TCB_t * tcb;
     inputFibonacci_ta * input;
+
     tcb = prvGetTCBFromHandle(task);
-    input=pvPortMalloc(sizeof(inputFibonacci_ta));
-    input->n_current=-1;
-    tcb->redundantStruct.pxInputStruct=input;
+    input= (inputFibonacci_ta*) tcb->redundantStruct.pxInputStruct;
+    input->n_current=0;
+    input->n_previous=-1;
 }
