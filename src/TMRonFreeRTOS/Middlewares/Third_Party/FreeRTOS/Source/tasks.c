@@ -1402,9 +1402,10 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB )
                     pxTCB->redundantStruct.iterationCounter++;
                     // check if the task and it's validation are at the same execution point
                     if (xTaskAheadStatus() == 0){
-                        //TODO: [MEDIUM] [xTaskDelayUntil] make a way to select the the system behavior when a crash occurs
                       xReturn=xRedundancyLogic(pxTCB);
-                      configASSERT(xReturn==pdPASS);  
+                      if(xReturn!=pdPASS){
+                        traceTASK_DELAY_FAILURE();
+                      }
                     }
                 taskEXIT_CRITICAL();
             }
@@ -1548,7 +1549,9 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB )
                     // check if the task and it's validation are at the same execution point
                     if (xTaskAheadStatus() == 0){
                       xReturn=xRedundancyLogic(pxTCB);
-                      configASSERT(xReturn==pdPASS);  
+                      if(xReturn!=pdPASS){
+                        traceTASK_DELAY_FAILURE();
+                      } 
                     }
                 taskEXIT_CRITICAL();
             }
@@ -6372,6 +6375,10 @@ static void prvAddCurrentTaskToDelayedList( TickType_t xTicksToWait,
             return pdFAIL;
         }
         return pdPASS;
+    }
+
+    void defaultDelayFailureHandler(){
+        configASSERT(0); //A failure in the redundant logic scope has been reached, default behaviour is to stall the system.
     }
 
     void* xGetTaskOutput(TaskHandle_t task){

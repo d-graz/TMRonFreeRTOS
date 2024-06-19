@@ -1227,7 +1227,6 @@ void vTaskResume( TaskHandle_t xTaskToResume ) PRIVILEGED_FUNCTION;
  * \defgroup vTaskResumeFromISR vTaskResumeFromISR
  * \ingroup TaskCtrl
  */
-//TODO: [HIGH] [xTaskResumeFromISR] modificare
 BaseType_t xTaskResumeFromISR( TaskHandle_t xTaskToResume ) PRIVILEGED_FUNCTION;
 
 /*-----------------------------------------------------------

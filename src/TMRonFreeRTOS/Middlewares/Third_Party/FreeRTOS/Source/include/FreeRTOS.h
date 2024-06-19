@@ -1183,6 +1183,17 @@
     #define traceTASK_RECOVERY_MODE() defaultRecoveryHandler()
 #endif
 
+#ifndef traceTASK_DELAY_FAILURE
+
+    /**
+     * Hook called when a task fails in the redundant logic scope during vTaskDelay or vTaskDelayUntil.
+     * Default behaviour will be stalling the scheduler.
+     * 
+    */
+    extern void defaultDelayFailureHandler();
+    #define traceTASK_DELAY_FAILURE() defaultDelayFailureHandler()
+#endif
+
 
 /* Sometimes the FreeRTOSConfig.h settings only allow a task to be created using
  * dynamically allocated RAM, in which case when any task is deleted it is known
