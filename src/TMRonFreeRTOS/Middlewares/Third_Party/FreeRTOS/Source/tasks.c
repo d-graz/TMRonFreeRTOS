@@ -654,6 +654,13 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB ) PRIVILEGED_FUNCTION;
      * Original vTaskResume function
     */
     void oTaskResume( TaskHandle_t xTaskToSuspend ) PRIVILEGED_FUNCTION;
+
+    /*
+     * Original vTaskSuspendFromISR function
+     * Returns pdTRUE if context switch is required, pdFALSE otherwise. 
+     * Returns pdTRUE only referred to called task, not validation.
+    */
+    BaseType_t oTaskResumeFromISR( TCB_t*  xTaskToResume );
 #endif
 
 
@@ -2367,7 +2374,52 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB )
 
 #if ( ( INCLUDE_xTaskResumeFromISR == 1 ) && ( INCLUDE_vTaskSuspend == 1 ) )
 
-    BaseType_t xTaskResumeFromISR( TaskHandle_t xTaskToResume )
+    BaseType_t xTaskResumeFromISR( TaskHandle_t xTaskToResume ){
+        //get the TCB from the handle
+        TCB_t * pxTCB;
+        pxTCB = prvGetTCBFromHandle( xTaskToResume );
+        BaseType_t xReturn;
+        taskENTER_CRITICAL();
+
+        #if (configUSE_REDUNDANT_TASK == 1)
+            currentCall = inResume;
+            /* Resume the task if not redundant
+             * If redundant, resume also validation and SuS task (if present)
+            */
+            if(pxTCB->isRedundantTask == pdFALSE){
+                xReturn=oTaskResumeFromISR(pxTCB);
+            } else {
+                /**
+                 * If the task is in recovery process, do not resume it. It will eventually (after recovery) be resumed automatically.
+                */
+                if(pxTCB->redundantStruct.pxRedundantShared->isRecoveryProcess == pdTRUE){
+                    traceTASK_RECOVERY_MODE();
+                    currentCall = notInContext;
+                    taskEXIT_CRITICAL();
+                    return pdFALSE; //if no task is resumed, context switch should not happen
+                }
+                //TODO: [LOW] [vTaskResumeFromISR] if check should't be needed (validation task should be always present)
+                //resume the validation task
+                if(pxTCB->redundantStruct.pxTaskValidation != NULL){
+                    oTaskResumeFromISR(pxTCB->redundantStruct.pxTaskValidation);
+                }
+                //Resume the task
+                xReturn=oTaskResumeFromISR(pxTCB);
+            }
+
+            currentCall = notInContext;
+
+        #else
+
+            xReturn=oTaskResumeFromISR(pxTCB);
+
+        #endif
+
+        taskEXIT_CRITICAL(); 
+        return xReturn;
+    }
+    
+    BaseType_t oTaskResumeFromISR( TCB_t*  xTaskToResume )
     {
         BaseType_t xYieldRequired = pdFALSE;
         TCB_t * const pxTCB = xTaskToResume;
