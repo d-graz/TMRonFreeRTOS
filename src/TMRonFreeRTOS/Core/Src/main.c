@@ -138,17 +138,17 @@ typedef struct outputAscon {
 
 void commitAscon(){
   outputAscon_t * output = (outputAscon_t*) xGetOutput();
-  if (output->exec_state == EXEC_STATE_ACTIVE){
+  if (output->exec_state == EXEC_STATE_DONE){
     if (output->exec_mode == EXEC_MODE_ENCRYPT){
-      printf("Cypher: ");
+      printf("OUTPUT Cypher: ");
       for (int i = 0; i < output->cypher_len; i++){
         printf("%02x", output->cypher[i]);
       }
       printf("\n");
     } else if (output->exec_mode == EXEC_MODE_DECRYPT){
-      printf("Message: ");
+      printf("OUTPUT Message: ");
       for (int i = 0; i < output->message_len; i++){
-        printf("%c", output->message[i]);
+        printf("%02x", output->message[i]);
       }
       printf("\n");
     }
@@ -206,7 +206,7 @@ int main(void)
   /* Create the thread(s) */
   /* creation of TheTask */
 
-  taskAscon = osThreadNewRedundant(taskAsconBody, NULL, &taskAsconAttributes);
+  taskAscon = osThreadNewRedundant(taskAsconBody, NULL, &taskAsconAttributes);  // in task.h xTaskCreateRedundant
   taskUser = osThreadNew(taskUserBody, NULL, &taskUserAttributes); 
 
   // setting the input of the ascon task
@@ -216,6 +216,9 @@ int main(void)
 
   // setting the output of the ascon task
   xSetOutput(taskAscon, sizeof(outputAscon_t));
+
+  // set the commit function of the ascon task
+  xSetCommitFunction(taskAscon, commitAscon, NULL);
 
   #ifdef __DEBUG__
   	printTaskList();
@@ -414,8 +417,14 @@ void taskUserBody(void *argument)
   init_buffer(ad, AD_LENGTH);
   init_buffer(nonce, CRYPTO_NPUBBYTES);
   init_buffer(key, CRYPTO_KEYBYTES);
+  printf("Message: ");
+  for (int i = 0; i < M_LENGTH; i++){
+    printf("%02x", message[i]);
+  }
+  printf("\n");
 
   // await some time for the ascon task to be ready
+  printf("\nAwaiting for the encryption service to be ready\n");
   osDelay(1000);
   TaskHandle_t taskAscon = xTaskGetHandle("AsconTask");
   uint8_t ready = 0;
@@ -427,6 +436,7 @@ void taskUserBody(void *argument)
     }
     osDelay(50);
   }
+
   // preparing the input to the ascon task
   inputAscon_t * input = pvPortMalloc(sizeof(inputAscon_t));
   input->exec_state = EXEC_STATE_ACTIVE;
@@ -437,10 +447,11 @@ void taskUserBody(void *argument)
   input->ad_len = AD_LENGTH;
   memcpy(input->nonce, nonce, CRYPTO_NPUBBYTES);
   memcpy(input->key, key, CRYPTO_KEYBYTES);
-
+  printf("Input set for encryption\n");
   // setting the input of the ascon task
-  xSetInput(taskAscon, input, sizeof(inputAscon_t));
+  xSetTaskInput(taskAscon, input);
 
+  printf("Await for the decryption serivce to be ready\n");
   // waiting for the ascon task to finish
   osDelay(1000);
   ready = 0;
@@ -455,15 +466,35 @@ void taskUserBody(void *argument)
   input->exec_mode = EXEC_MODE_DECRYPT;
   memcpy(input->cypher, output->cypher, output->cypher_len);
   input->cypher_len = output->cypher_len;
-  xSetInput(taskAscon, input, sizeof(inputAscon_t));
-  
+  xSetTaskInput(taskAscon, input);
+  printf("Input set for decryption\n");
+
+  printf("Await for the decryption serivce to finish\n");
+  // waiting for the ascon task to finish
+  osDelay(1000);
+  ready = 0;
+  while (!ready){
+    output = (outputAscon_t*) xGetTaskOutput(taskAscon);
+    if (output->exec_state == EXEC_STATE_INACTIVE){
+      ready = 1;
+    }
+    osDelay(50);
+  }
+  printf("Decryption service finished\n");
+
+  if(memcmp(message, output->message, M_LENGTH) == 0){
+    printf("\nEncryption and Decryption successful\n");
+  } else {
+    printf("\nEncryption and/or Decryption failed\n");
+  }
+
+  vTaskDelete(NULL);
 }
 
 void taskAsconBody(void *argument){
   inputAscon_t * input = (inputAscon_t*) xGetInput();
   outputAscon_t * output = (outputAscon_t*) xGetOutput();
   for(;;){
-
     // an external task has to set the input
     if(input->exec_state == EXEC_STATE_ACTIVE){
 
