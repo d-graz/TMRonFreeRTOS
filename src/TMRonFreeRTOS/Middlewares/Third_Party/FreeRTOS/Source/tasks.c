@@ -620,7 +620,7 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB ) PRIVILEGED_FUNCTION;
     /**
      * FUnction that creates a new recovery task
     */
-    BaseType_t createRecoveryTask(TCB_t * pxTCB, BaseType_t inputFailure);
+    BaseType_t createRecoveryTask(TCB_t * pxTCB);
 
     /*
      * Given the recovery tcb and the original tcb,
@@ -632,7 +632,7 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB ) PRIVILEGED_FUNCTION;
      * Initialize the recovery tcb with the values from the original tcb
      * The input struct is copied, the output struct is allocated and the shared values are assigned
      */
-    BaseType_t xInitializeRecovery(TCB_t* recovery_tcb, TCB_t* original_tcb, BaseType_t inputFailure);
+    BaseType_t xInitializeRecovery(TCB_t* recovery_tcb, TCB_t* original_tcb);
 
     /*
      * Delete allocated memory for redundant tasks
@@ -1495,7 +1495,7 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB )
             memcpy(original_tcb->redundantStruct.pxOutputStruct, recovery_tcb->redundantStruct.pxOutputStruct, original_tcb->redundantStruct.pxRedundantShared->uOutputStructSize);
         }
 
-        BaseType_t xInitializeRecovery(TCB_t* recovery_tcb, TCB_t* original_tcb, BaseType_t inputFailure){
+        BaseType_t xInitializeRecovery(TCB_t* recovery_tcb, TCB_t* original_tcb){
             //set the pointer for the shared values
             recovery_tcb->redundantStruct.pxRedundantShared=original_tcb->redundantStruct.pxRedundantShared;
 
@@ -1507,13 +1507,9 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB )
 
             //copy the input struct (deep copy) and set the iteration counter
             recovery_tcb->redundantStruct.pxInputStruct=pvPortMalloc(original_tcb->redundantStruct.pxRedundantShared->uInputStructSize);
-            if(inputFailure == pdFALSE){
-                memcpy(recovery_tcb->redundantStruct.pxInputStruct, original_tcb->redundantStruct.pxInputStruct, original_tcb->redundantStruct.pxRedundantShared->uInputStructSize);
-                recovery_tcb->redundantStruct.iterationCounter=original_tcb->redundantStruct.iterationCounter - 1;
-            } else {
-                memcpy(recovery_tcb->redundantStruct.pxInputStruct, original_tcb->redundantStruct.pxRedundantShared->pxSharedInputStruct, original_tcb->redundantStruct.pxRedundantShared->uInputStructSize);
-                recovery_tcb->redundantStruct.iterationCounter=original_tcb->redundantStruct.iterationCounter - 1;
-            }
+            
+            memcpy(recovery_tcb->redundantStruct.pxInputStruct, original_tcb->redundantStruct.pxRedundantShared->pxSharedInputStruct, original_tcb->redundantStruct.pxRedundantShared->uInputStructSize);
+            recovery_tcb->redundantStruct.iterationCounter=original_tcb->redundantStruct.iterationCounter - 1;
             
             //allocate memory for the output struct (should be filled during the iteration)
             recovery_tcb->redundantStruct.pxOutputStruct=pvPortMalloc(original_tcb->redundantStruct.pxRedundantShared->uOutputStructSize);
@@ -6302,7 +6298,7 @@ static void prvAddCurrentTaskToDelayedList( TickType_t xTicksToWait,
         BaseType_t xReturn;
 
         // create the recovery task
-        xReturn = createRecoveryTask(pxTCB, pdTRUE);
+        xReturn = createRecoveryTask(pxTCB);
         if( xReturn != pdPASS){
             return pdFAIL;
         }
@@ -6314,8 +6310,7 @@ static void prvAddCurrentTaskToDelayedList( TickType_t xTicksToWait,
         
     }
 
-    //TODO: [LOW] [createRecoveryTask] parameter inputFailure should be removed
-    BaseType_t createRecoveryTask(TCB_t * pxTCB, BaseType_t inputFailure){
+    BaseType_t createRecoveryTask(TCB_t * pxTCB){
         //create a new task
         TaskHandle_t createdTask = NULL;
         BaseType_t xReturn;
@@ -6335,7 +6330,7 @@ static void prvAddCurrentTaskToDelayedList( TickType_t xTicksToWait,
             return pdFAIL;
         }
 
-        return xInitializeRecovery(prvGetTCBFromHandle(createdTask), pxTCB, inputFailure);
+        return xInitializeRecovery(prvGetTCBFromHandle(createdTask), pxTCB);
     }
 
 
