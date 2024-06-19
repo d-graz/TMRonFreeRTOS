@@ -6349,7 +6349,9 @@ static void prvAddCurrentTaskToDelayedList( TickType_t xTicksToWait,
         //if not, check other task
         if(xReturn==pdFAIL){
             xReturn = compareZone(pxTCB->redundantStruct.pxOutputStruct, pxTCB->redundantStruct.pxTaskSUS->redundantStruct.pxOutputStruct, pxTCB->redundantStruct.pxRedundantShared->uOutputStructSize);
-            configASSERT(xReturn==pdPASS); //if not equal, the recovery has failed
+            if(xReturn!=pdPASS){
+                return pdFAIL;
+            } //if not equal, the recovery has failed
             failedTask = pxTCB->redundantStruct.pxTaskValidation;
         }
         else{
