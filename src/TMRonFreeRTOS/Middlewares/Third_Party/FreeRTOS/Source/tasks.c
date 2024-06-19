@@ -6151,11 +6151,16 @@ static void prvAddCurrentTaskToDelayedList( TickType_t xTicksToWait,
             return pdFALSE; /* Return pdFALSE if memory allocation failed */
         }
         // copy the input struct to the validation task if not null
-        //TODO: [xSetInput] [CRITICAL] possible bug here: the input struct is copied only to validatation task, not to the shared struct
+        //TODO: [LOW - WITH DAVIDE] check if this critical was fixed correctly
+        // [xSetInput] [CRITICAL] possible bug here: the input struct is copied only to validatation task, not to the shared struct
+        xReturn = xSetStruct(NULL, uxSize, &(tcb->redundantStruct.pxRedundantShared->pxSharedInputStruct)); /* Allocates space for the previous (shared) input*/
+        if (xReturn == pdFALSE) {
+            return pdFALSE; /* Return pdFALSE if memory allocation failed */
+        }
         if (pxStruct != NULL) {
             memcpy(tcb->redundantStruct.pxTaskValidation->redundantStruct.pxInputStruct, pxStruct, uxSize);
+            memcpy(tcb->redundantStruct.pxRedundantShared->pxSharedInputStruct, pxStruct, uxSize); //copy input on shared struct
         }
-        xReturn = xSetStruct(NULL, uxSize, &(tcb->redundantStruct.pxRedundantShared->pxSharedInputStruct)); /* Allocates space for the previous (shared) input*/
         return xReturn;
     }
 
