@@ -6319,8 +6319,16 @@ static void prvAddCurrentTaskToDelayedList( TickType_t xTicksToWait,
         //create a new task
         TaskHandle_t createdTask = NULL;
         BaseType_t xReturn;
-        //FIXME : [LOW] set a true name
-        xReturn = xTaskCreate( pxTCB->redundantStruct.pxRedundantShared->taskCode, "RecoveryTask", pxTCB->redundantStruct.pxRedundantShared->stackDepth, pxTCB->redundantStruct.pxRedundantShared->pvParameters, pxTCB->uxPriority, &createdTask );
+        //[FIXME] [EXTRA LOW] maybe create a separate function for setting the name? 
+        char pcName_rec[configMAX_TASK_NAME_LEN];
+        // safe copy of name + _rt to a task
+        int len = strlen(pxTCB->pcTaskName);
+        if (len >= configMAX_TASK_NAME_LEN - 3) {
+            len = configMAX_TASK_NAME_LEN - 4;
+        }
+        memcpy(pcName_rec, pxTCB->pcTaskName, len);
+        strcpy(pcName_rec + len, "_rt"); //Recovery Task (_rt)
+        xReturn = xTaskCreate( pxTCB->redundantStruct.pxRedundantShared->taskCode, pcName_rec, pxTCB->redundantStruct.pxRedundantShared->stackDepth, pxTCB->redundantStruct.pxRedundantShared->pvParameters, pxTCB->uxPriority, &createdTask );
 
         // check that the task has been correctly created
         if (xReturn != pdPASS){

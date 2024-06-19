@@ -449,6 +449,7 @@ void taskFibonacciBody(void *argument){
   output= (outputFibonacci_t*) xGetOutput(NULL);
   output->n_next = 0;
   for(;;){
+    //printf("\n\n %s\n\n", pcTaskGetName( xTaskGetCurrentTaskHandle()));
     input = (inputFibonacci_t*) xGetInput(NULL);
     
     #ifdef __DEBUG__
