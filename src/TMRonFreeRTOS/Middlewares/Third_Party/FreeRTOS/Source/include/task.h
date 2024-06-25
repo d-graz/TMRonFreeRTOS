@@ -3178,11 +3178,6 @@ void vTaskInternalSetTimeOutState( TimeOut_t * const pxTimeOut ) PRIVILEGED_FUNC
     */
     void* xGetInput();
 
-    /**
-     * Returns the input zone of a task (at previous commit)
-    */
-    void* xGetTaskInput(TaskHandle_t task);
-
     /*
     * Suspends a task from an ISR context. 
     * The suspended task is the one that is currently running.

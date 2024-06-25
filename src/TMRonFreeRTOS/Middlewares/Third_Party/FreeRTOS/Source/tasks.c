@@ -1492,7 +1492,9 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB )
 
         void xTaskRestore(TCB_t* recovery_tcb, TCB_t* original_tcb){
             memcpy(original_tcb->redundantStruct.pxInputStruct, recovery_tcb->redundantStruct.pxInputStruct, original_tcb->redundantStruct.pxRedundantShared->uInputStructSize);
-            memcpy(original_tcb->redundantStruct.pxOutputStruct, recovery_tcb->redundantStruct.pxOutputStruct, original_tcb->redundantStruct.pxRedundantShared->uOutputStructSize);
+            if(recovery_tcb->redundantStruct.pxRedundantShared->uOutputStructSize>0){
+                memcpy(original_tcb->redundantStruct.pxOutputStruct, recovery_tcb->redundantStruct.pxOutputStruct, original_tcb->redundantStruct.pxRedundantShared->uOutputStructSize);
+            }
         }
 
         BaseType_t xInitializeRecovery(TCB_t* recovery_tcb, TCB_t* original_tcb){
@@ -1513,7 +1515,7 @@ static void prvAddNewTaskToReadyList( TCB_t * pxNewTCB )
             
             //allocate memory for the output struct (should be filled during the iteration)
             recovery_tcb->redundantStruct.pxOutputStruct=pvPortMalloc(original_tcb->redundantStruct.pxRedundantShared->uOutputStructSize);
-            if (recovery_tcb->redundantStruct.pxOutputStruct == NULL){
+            if (recovery_tcb->redundantStruct.pxOutputStruct == NULL && recovery_tcb->redundantStruct.pxRedundantShared->uOutputStructSize>0){
                 return pdFAIL;
             }
             
@@ -6146,13 +6148,12 @@ static void prvAddCurrentTaskToDelayedList( TickType_t xTicksToWait,
         if (xReturn == pdFALSE) {
             return pdFALSE; /* Return pdFALSE if memory allocation failed */
         }
-        // copy the input struct to the validation task if not null
-        //TODO: [LOW - WITH DAVIDE] check if this critical was fixed correctly
-        // [xSetInput] [CRITICAL] possible bug here: the input struct is copied only to validatation task, not to the shared struct
+        //allocate for shared input
         xReturn = xSetStruct(NULL, uxSize, &(tcb->redundantStruct.pxRedundantShared->pxSharedInputStruct)); /* Allocates space for the previous (shared) input*/
         if (xReturn == pdFALSE) {
             return pdFALSE; /* Return pdFALSE if memory allocation failed */
         }
+        // copy the input struct to the validation task and shared input if initialization not null
         if (pxStruct != NULL) {
             memcpy(tcb->redundantStruct.pxTaskValidation->redundantStruct.pxInputStruct, pxStruct, uxSize);
             memcpy(tcb->redundantStruct.pxRedundantShared->pxSharedInputStruct, pxStruct, uxSize); //copy input on shared struct
@@ -6244,7 +6245,11 @@ static void prvAddCurrentTaskToDelayedList( TickType_t xTicksToWait,
         }
 
         // comparing the output
-        xReturn = compareZone(pxTCB->redundantStruct.pxOutputStruct, pxTCB->redundantStruct.pxTaskValidation->redundantStruct.pxOutputStruct, pxTCB->redundantStruct.pxRedundantShared->uOutputStructSize);
+        if(pxTCB->redundantStruct.pxRedundantShared->uOutputStructSize>0){
+            xReturn = compareZone(pxTCB->redundantStruct.pxOutputStruct, pxTCB->redundantStruct.pxTaskValidation->redundantStruct.pxOutputStruct, pxTCB->redundantStruct.pxRedundantShared->uOutputStructSize);
+        } else {
+            xReturn = pdPASS; //no output to compare
+        }
         if (xReturn == pdFAIL){
             // calling function to start the recovery process
             #ifdef __DEBUG__
@@ -6270,8 +6275,9 @@ static void prvAddCurrentTaskToDelayedList( TickType_t xTicksToWait,
         memcpy(pxTCB->redundantStruct.pxRedundantShared->pxSharedOutputStruct, pxTCB->redundantStruct.pxOutputStruct, pxTCB->redundantStruct.pxRedundantShared->uOutputStructSize);
 
         //commit output
-        pxTCB->redundantStruct.pxRedundantShared->pxCommitFunction(pxTCB->redundantStruct.pxRedundantShared->pxCommitFunctionParameter);
-
+        if( pxTCB->redundantStruct.pxRedundantShared->pxCommitFunction!=NULL){
+            pxTCB->redundantStruct.pxRedundantShared->pxCommitFunction(pxTCB->redundantStruct.pxRedundantShared->pxCommitFunctionParameter);
+        }
         //resume the validation task if it was suspended
         if (eTaskGetState(pxTCB->redundantStruct.pxTaskValidation) == eSuspended){
             oTaskResume(pxTCB->redundantStruct.pxTaskValidation);
@@ -6338,30 +6344,36 @@ static void prvAddCurrentTaskToDelayedList( TickType_t xTicksToWait,
         BaseType_t xReturn;
         TCB_t * failedTask;
 
-        //compare first output
-        xReturn = compareZone(pxTCB->redundantStruct.pxOutputStruct, pxTCB->redundantStruct.pxTaskValidation->redundantStruct.pxOutputStruct, pxTCB->redundantStruct.pxRedundantShared->uOutputStructSize);
-        //if equal, recovery successful                           
-        //if not, check other task
-        if(xReturn==pdFAIL){
-            xReturn = compareZone(pxTCB->redundantStruct.pxOutputStruct, pxTCB->redundantStruct.pxTaskSUS->redundantStruct.pxOutputStruct, pxTCB->redundantStruct.pxRedundantShared->uOutputStructSize);
-            if(xReturn!=pdPASS){
-                return pdFAIL;
-            } //if not equal, the recovery has failed
-            failedTask = pxTCB->redundantStruct.pxTaskValidation;
+        
+        if(pxTCB->redundantStruct.pxRedundantShared->uOutputStructSize<=0){
+            xTaskRestore(pxTCB, pxTCB->redundantStruct.pxTaskValidation);
+            xTaskRestore(pxTCB, pxTCB->redundantStruct.pxTaskSUS);
+        } else {
+            xReturn = compareZone(pxTCB->redundantStruct.pxOutputStruct, pxTCB->redundantStruct.pxTaskValidation->redundantStruct.pxOutputStruct, pxTCB->redundantStruct.pxRedundantShared->uOutputStructSize);
+            //if equal, recovery successful                           
+            //if not, check other task
+            if(xReturn==pdFAIL){
+                xReturn = compareZone(pxTCB->redundantStruct.pxOutputStruct, pxTCB->redundantStruct.pxTaskSUS->redundantStruct.pxOutputStruct, pxTCB->redundantStruct.pxRedundantShared->uOutputStructSize);
+                if(xReturn!=pdPASS){
+                    return pdFAIL;
+                } //if not equal, the recovery has failed
+                failedTask = pxTCB->redundantStruct.pxTaskValidation;
+            }
+            else{
+                failedTask = pxTCB->redundantStruct.pxTaskSUS;
+            }
+            //restore failed task and exit recovery mode
+            xTaskRestore(pxTCB, failedTask);
         }
-        else{
-            failedTask = pxTCB->redundantStruct.pxTaskSUS;
-        }
-        //restore failed task and exit recovery mode
-        xTaskRestore(pxTCB, failedTask);
         oTaskResume(pxTCB->redundantStruct.pxTaskValidation);
         oTaskResume(pxTCB->redundantStruct.pxTaskSUS);
         pxTCB->redundantStruct.pxRedundantShared->isRecoveryProcess = pdFALSE;
         oTaskSuspend(NULL);
 
         //commit output
-        pxTCB->redundantStruct.pxRedundantShared->pxCommitFunction(pxTCB->redundantStruct.pxRedundantShared->pxCommitFunctionParameter);
-
+        if(pxTCB->redundantStruct.pxRedundantShared->pxCommitFunction!=NULL){
+            pxTCB->redundantStruct.pxRedundantShared->pxCommitFunction(pxTCB->redundantStruct.pxRedundantShared->pxCommitFunctionParameter);
+        }
         //update the input
         memcpy(pxTCB->redundantStruct.pxRedundantShared->pxSharedInputStruct, pxTCB->redundantStruct.pxInputStruct, pxTCB->redundantStruct.pxRedundantShared->uInputStructSize);
 
@@ -6396,13 +6408,6 @@ static void prvAddCurrentTaskToDelayedList( TickType_t xTicksToWait,
         tcb = prvGetTCBFromHandle(task);
         configASSERT(tcb->isRedundantTask == pdTRUE); /* Checks that the task is actually a redundant one*/
         return tcb->redundantStruct.pxRedundantShared->pxSharedOutputStruct;
-    }
-
-    void* xGetTaskInput(TaskHandle_t task){
-        TCB_t * tcb;
-        tcb = prvGetTCBFromHandle(task);
-        configASSERT(tcb->isRedundantTask == pdTRUE); /* Checks that the task is actually a redundant one*/
-        return tcb->redundantStruct.pxRedundantShared->pxSharedInputStruct;
     }
 
     void xSetTaskInput(TaskHandle_t task, void* pxStruct){
