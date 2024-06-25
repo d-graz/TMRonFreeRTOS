@@ -27,13 +27,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include "task.h"
-
-// import ascon api headers
-#include "api.h"
-#include "ascon.h"
-#include "crypto_aead.h"
-#include "permutations.h"
-#include "word.h"
+#include "semphr.h"
+#include "time.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -43,7 +38,9 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-
+#define N_PRIMES 1000
+#define REDUNDANT_MODE
+#define DELAY 2
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -57,19 +54,27 @@ UART_HandleTypeDef huart2;
 /* Definitions for TheTask */
 
 // Define the task handle
-osThreadId_t taskUser;
-const osThreadAttr_t taskUserAttributes = {
-  .name = "UserTask",
+osThreadId_t taskBenchmark;
+const osThreadAttr_t taskBenchmarkAttributes = {
+  .name = "BenchmarkTask",
   .stack_size = 1000 * 4,
-  .priority = (osPriority_t) osPriorityNormal,
+  .priority = (osPriority_t) osPriorityHigh,
 };
 
-osThreadId_t taskAscon;
-const osThreadAttr_t taskAsconAttributes = {
-  .name = "AsconTask",
+osThreadId_t taskPrime;
+const osThreadAttr_t taskPrimeAttributes = {
+  .name = "PrimeTask",
   .stack_size = 2000 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
+#ifndef REDUNDANT_MODE
+  osThreadId_t taskPrime1;
+  const osThreadAttr_t taskPrimeAttributes1 = {
+    .name = "PrimeTask1",
+    .stack_size = 2000 * 4,
+    .priority = (osPriority_t) osPriorityNormal,
+  };
+#endif
 /* USER CODE BEGIN PV */
 
 /* USER CODE END PV */
@@ -80,17 +85,17 @@ static void MX_GPIO_Init(void);
 static void MX_USART2_UART_Init(void);
 
 // define the task bodies
-void taskUserBody(void *argument);
-void taskAsconBody(void *argument);
+void taskBenchmarkBody(void *argument);
+void taskPrimeBody(void *argument);
+#ifndef REDUNDANT_MODE
+  void taskPrimeBody1(void *argument);
+#endif
 
 // define the commit functions
-void commitAscon();
-
-// utility function
-void init_buffer(unsigned char* buffer, unsigned long long numbytes) {
-  unsigned long long i;
-  for (i = 0; i < numbytes; i++) buffer[i] = (unsigned char)i;
-}
+void commitPrime();
+#ifndef REDUNDANT_MODE
+  void commitPrime1(uint16_t * arr);
+#endif
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -105,55 +110,43 @@ void init_buffer(unsigned char* buffer, unsigned long long numbytes) {
   * @retval int
   */
 
-#define AD_LENGTH 16
-#define M_LENGTH 64
-#define EXEC_STATE_ACTIVE 1
-#define EXEC_STATE_INACTIVE 0
-#define EXEC_STATE_DONE 2
-#define EXEC_MODE_ENCRYPT 1
-#define EXEC_MODE_DECRYPT 0
+//create a semaphore to tell the benchmark task that the prime task is done
+SemaphoreHandle_t xSemaphore;
+#ifndef REDUNDANT_MODE
+  SemaphoreHandle_t xSemaphore1;
+#endif
 
-//LIM: cannot use pointers inside this struct
-typedef struct inputAscon {
-  uint8_t exec_state;
-  uint8_t exec_mode;
-  unsigned char cypher[M_LENGTH + CRYPTO_ABYTES];
-  unsigned long long cypher_len;
-  unsigned char message[M_LENGTH];
-  unsigned long long message_len;
-  unsigned char ad[AD_LENGTH];
-  unsigned long long ad_len;
-  unsigned char nonce[CRYPTO_NPUBBYTES];
-  unsigned char key[CRYPTO_KEYBYTES];
-} inputAscon_t;
+// input struct for prime function
+typedef struct inputPrime {
+  uint16_t n_primes[N_PRIMES];
+  uint16_t index;
+  uint16_t n;
+} inputPrime_t;
 
-typedef struct outputAscon {
-  uint8_t exec_state;
-  uint8_t exec_mode;
-  unsigned char cypher[M_LENGTH + CRYPTO_ABYTES];
-  unsigned char message[M_LENGTH];
-  unsigned long long cypher_len;
-  unsigned long long message_len;
-} outputAscon_t;
-
-void commitAscon(){
-  outputAscon_t * output = (outputAscon_t*) xGetOutput();
-  if (output->exec_state == EXEC_STATE_DONE){
-    if (output->exec_mode == EXEC_MODE_ENCRYPT){
-      printf("OUTPUT Cypher: ");
-      for (int i = 0; i < output->cypher_len; i++){
-        printf("%02x", output->cypher[i]);
-      }
-      printf("\n");
-    } else if (output->exec_mode == EXEC_MODE_DECRYPT){
-      printf("OUTPUT Message: ");
-      for (int i = 0; i < output->message_len; i++){
-        printf("%02x", output->message[i]);
+void commitPrime(){
+  inputPrime_t * input = (inputPrime_t*) xGetInput();
+  if (input->index == N_PRIMES){
+    printf("\nPrime numbers: ");
+    for(int i = 0; i < N_PRIMES; i+=(N_PRIMES/10)){
+      for(int j = i; j < i+(N_PRIMES/10); j++){
+        printf("%d ", input->n_primes[j]);
       }
       printf("\n");
     }
+    xSemaphoreGive(xSemaphore);
   }
 }
+
+void commitPrime1(uint16_t * arr){
+	for(int i = 0; i < N_PRIMES; i+=(N_PRIMES/10)){
+	    for(int j = i; j < i+(N_PRIMES/10); j++){
+	      printf("%d ", arr[j]);
+	   }
+	  printf("\n");
+	}
+}
+
+
 
 int main(void)
 {
@@ -205,20 +198,24 @@ int main(void)
 
   /* Create the thread(s) */
   /* creation of TheTask */
+  #ifdef REDUNDANT_MODE
+    // create the prime task in redundant mode
+    taskPrime = osThreadNewRedundant(taskPrimeBody, NULL, &taskPrimeAttributes);
 
-  taskAscon = osThreadNewRedundant(taskAsconBody, NULL, &taskAsconAttributes);  // in task.h xTaskCreateRedundant
-  taskUser = osThreadNew(taskUserBody, NULL, &taskUserAttributes); 
-
-  // setting the input of the ascon task
-  inputAscon_t * inputAscon = pvPortMalloc(sizeof(inputAscon_t));
-  inputAscon->exec_state = EXEC_STATE_INACTIVE;
-  xSetInput(taskAscon, inputAscon, sizeof(inputAscon_t));
-
-  // setting the output of the ascon task
-  xSetOutput(taskAscon, sizeof(outputAscon_t));
-
-  // set the commit function of the ascon task
-  xSetCommitFunction(taskAscon, commitAscon, NULL);
+    // initialize the input
+    inputPrime_t * inputPrime = pvPortMalloc(sizeof(inputPrime_t));
+    inputPrime->index = 0;
+    for(int i = 0; i < N_PRIMES; i++){
+      inputPrime->n_primes[i] = 0;
+    }
+    inputPrime->n = 2;
+    xSetInput(taskPrime, inputPrime, sizeof(inputPrime_t));
+    xSetCommitFunction(taskPrime, commitPrime, NULL);
+  #else
+    taskPrime = osThreadNew(taskPrimeBody, NULL, &taskPrimeAttributes);
+    taskPrime1 = osThreadNew(taskPrimeBody1, NULL, &taskPrimeAttributes1);
+  #endif
+  taskBenchmark = osThreadNew(taskBenchmarkBody, NULL, &taskBenchmarkAttributes);
 
   #ifdef __DEBUG__
   	printTaskList();
@@ -405,126 +402,109 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE END 4 */
 
-void taskUserBody(void *argument)
+void taskBenchmarkBody(void *argument)
 {
-  // declarizing and initializing
-  unsigned char cypher[M_LENGTH + CRYPTO_ABYTES];
-  unsigned char message[M_LENGTH];
-  unsigned char ad[AD_LENGTH];
-  unsigned char nonce[CRYPTO_NPUBBYTES];
-  unsigned char key[CRYPTO_KEYBYTES];
-  init_buffer(message, M_LENGTH);
-  init_buffer(ad, AD_LENGTH);
-  init_buffer(nonce, CRYPTO_NPUBBYTES);
-  init_buffer(key, CRYPTO_KEYBYTES);
-  printf("Message: ");
-  for (int i = 0; i < M_LENGTH; i++){
-    printf("%02x", message[i]);
-  }
-  printf("\n");
-
-  // await some time for the ascon task to be ready
-  printf("\nAwaiting for the encryption service to be ready\n");
-  osDelay(1000);
-  TaskHandle_t taskAscon = xTaskGetHandle("AsconTask");
-  uint8_t ready = 0;
-  // wait for the output of the ascon task to be set to inactive
-  while (!ready){
-    outputAscon_t * output = (outputAscon_t*) xGetTaskOutput(taskAscon);
-    if (output->exec_state == EXEC_STATE_INACTIVE){
-      ready = 1;
-    }
-    osDelay(50);
-  }
-
-  // preparing the input to the ascon task
-  inputAscon_t * input = pvPortMalloc(sizeof(inputAscon_t));
-  input->exec_state = EXEC_STATE_ACTIVE;
-  input->exec_mode = EXEC_MODE_ENCRYPT;
-  memcpy(input->message, message, M_LENGTH);
-  input->message_len = M_LENGTH;
-  memcpy(input->ad, ad, AD_LENGTH);
-  input->ad_len = AD_LENGTH;
-  memcpy(input->nonce, nonce, CRYPTO_NPUBBYTES);
-  memcpy(input->key, key, CRYPTO_KEYBYTES);
-  printf("Input set for encryption\n");
-  // setting the input of the ascon task
-  xSetTaskInput(taskAscon, input);
-
-  printf("Await for the decryption serivce to be ready\n");
-  // waiting for the ascon task to finish
-  osDelay(1000);
-  ready = 0;
-  outputAscon_t * output;
-  while (!ready){
-    output = (outputAscon_t*) xGetTaskOutput(taskAscon);
-    if (output->exec_state == EXEC_STATE_INACTIVE){
-      ready = 1;
-    }
-    osDelay(50);
-  }
-  input->exec_mode = EXEC_MODE_DECRYPT;
-  memcpy(input->cypher, output->cypher, output->cypher_len);
-  input->cypher_len = output->cypher_len;
-  xSetTaskInput(taskAscon, input);
-  printf("Input set for decryption\n");
-
-  printf("Await for the decryption serivce to finish\n");
-  // waiting for the ascon task to finish
-  osDelay(1000);
-  ready = 0;
-  while (!ready){
-    output = (outputAscon_t*) xGetTaskOutput(taskAscon);
-    if (output->exec_state == EXEC_STATE_INACTIVE){
-      ready = 1;
-    }
-    osDelay(50);
-  }
-  printf("Decryption service finished\n");
-
-  if(memcmp(message, output->message, M_LENGTH) == 0){
-    printf("\nEncryption and Decryption successful\n");
-  } else {
-    printf("\nEncryption and/or Decryption failed\n");
-  }
-
+  unsigned long start, end;
+  #ifdef REDUNDANT_MODE
+    xSemaphore = xSemaphoreCreateBinary();
+    xSemaphoreGive(xSemaphore);
+    start = xTaskGetTickCount();
+    osDelay(10);
+    xSemaphoreTake(xSemaphore, portMAX_DELAY);
+    end = xTaskGetTickCount();
+    printf("Time taken for prime task: %f\n", (double)(end - start)/configTICK_RATE_HZ);
+  #else
+    xSemaphore = xSemaphoreCreateBinary();
+    xSemaphoreGive(xSemaphore);
+    xSemaphore1 = xSemaphoreCreateBinary();
+    xSemaphoreGive(xSemaphore1);
+    start = xTaskGetTickCount();
+    osDelay(10);
+    xSemaphoreTake(xSemaphore, portMAX_DELAY);
+    xSemaphoreTake(xSemaphore1, portMAX_DELAY);
+    end = xTaskGetTickCount();
+    printf("Time taken for prime task: %f\n", (double)(end - start)/configTICK_RATE_HZ);
+  #endif
   vTaskDelete(NULL);
 }
 
-void taskAsconBody(void *argument){
-  inputAscon_t * input = (inputAscon_t*) xGetInput();
-  outputAscon_t * output = (outputAscon_t*) xGetOutput();
-  for(;;){
-    // an external task has to set the input
-    if(input->exec_state == EXEC_STATE_ACTIVE){
-
-      if(input->exec_mode == EXEC_MODE_ENCRYPT){
-        
-        crypto_aead_encrypt(input->cypher, &input->cypher_len, input->message, input->message_len, input->ad, input->ad_len, NULL, input->nonce, input->key);
-        input->exec_state = EXEC_STATE_DONE;
-        output->exec_state = input->exec_state;
-        output->exec_mode = input->exec_mode;
-        output->cypher_len = input->cypher_len;
-        memcpy(output->cypher, input->cypher, input->cypher_len);
-        
-      } else if(input->exec_mode == EXEC_MODE_DECRYPT){
-        
-        crypto_aead_decrypt(input->message, &input->message_len, NULL, input->cypher, input->cypher_len, input->ad, input->ad_len, input->nonce, input->key);
-        input->exec_state = EXEC_STATE_DONE;
-        output->exec_state = input->exec_state;
-        output->exec_mode = input->exec_mode;
-        output->message_len = input->message_len;
-        memcpy(output->message, input->message, input->message_len);
-      
-      }
-
-    } else if (input->exec_state == EXEC_STATE_DONE) {
-      input->exec_state = EXEC_STATE_INACTIVE;
-      output->exec_state = input->exec_state;
-    }
-    osDelay(50);
+void taskPrimeBody(void *argument){
+  if(strcmp(pcTaskGetName(NULL), "PrimeTask") == 0){
+    xSemaphoreTake(xSemaphore, portMAX_DELAY);
   }
+  #ifdef REDUNDANT_MODE
+    inputPrime_t * input = (inputPrime_t*) xGetInput();
+    while(input->index < N_PRIMES){
+      uint8_t is_prime = 1;
+      for(int i = 0; i < N_PRIMES && input->n_primes[i] != 0; i++) {
+        if(input->n % input->n_primes[i] == 0){
+          is_prime = 0;
+          break;
+        }
+      }
+      if(is_prime){
+        input->n_primes[input->index] = input->n;
+        input->index++;
+      }
+      input->n++;
+      osDelay(DELAY);
+    }
+  #else
+    uint16_t n_primes[N_PRIMES];
+    uint16_t index = 0;
+    uint16_t n = 2;
+    for(int i = 0; i < N_PRIMES; i++){
+      n_primes[i] = 0;
+    }
+    while(index < N_PRIMES){
+      uint8_t is_prime = 1;
+      for(int i = 0; i < N_PRIMES && n_primes[i] != 0; i++) {
+        if(n % n_primes[i] == 0){
+          is_prime = 0;
+          break;
+        }
+      }
+      if(is_prime){
+        n_primes[index] = n;
+        index++;
+      }
+      n++;
+      osDelay(DELAY);
+    }
+    xSemaphoreGive(xSemaphore);
+  #endif
+  vTaskDelete(NULL);
 }
+
+#ifndef REDUNDANT_MODE
+void taskPrimeBody1(void *argument){
+  xSemaphoreTake(xSemaphore1, portMAX_DELAY);
+  uint16_t n_primes[N_PRIMES];
+    uint16_t index = 0;
+    uint16_t n = 2;
+    for(int i = 0; i < N_PRIMES; i++){
+      n_primes[i] = 0;
+    }
+    while(index < N_PRIMES){
+      uint8_t is_prime = 1;
+      for(int i = 0; i < N_PRIMES && n_primes[i] != 0; i++) {
+        if(n % n_primes[i] == 0){
+          is_prime = 0;
+          break;
+        }
+      }
+      if(is_prime){
+        n_primes[index] = n;
+        index++;
+      }
+      n++;
+      osDelay(DELAY);
+    }
+    commitPrime1(n_primes);
+  xSemaphoreGive(xSemaphore1);
+  vTaskDelete(NULL);
+}
+#endif
 
 /**
   * @brief  Period elapsed callback in non blocking mode
