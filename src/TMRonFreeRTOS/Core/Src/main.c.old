@@ -24,16 +24,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #include "task.h"
-
-// import ascon api headers
-#include "api.h"
-#include "ascon.h"
-#include "crypto_aead.h"
-#include "permutations.h"
-#include "word.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -56,19 +47,25 @@ UART_HandleTypeDef huart2;
 
 /* Definitions for TheTask */
 
-// Define the task handle
-osThreadId_t taskUser;
-const osThreadAttr_t taskUserAttributes = {
-  .name = "UserTask",
-  .stack_size = 1000 * 4,
+osThreadId_t taskPi;
+const osThreadAttr_t taskPiAttributes = {
+  .name = "piTask",
+  .stack_size = 500 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
 
-osThreadId_t taskAscon;
-const osThreadAttr_t taskAsconAttributes = {
-  .name = "AsconTask",
-  .stack_size = 2000 * 4,
+osThreadId_t taskFibonacci;
+const osThreadAttr_t taskFibonacciAttributes = {
+  .name = "fiboTask",
+  .stack_size = 500 * 4,
   .priority = (osPriority_t) osPriorityNormal,
+};
+
+osThreadId_t taskMalicious;
+const osThreadAttr_t taskMaliciousAttributes = {
+  .name = "EvilTask",
+  .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityHigh,
 };
 /* USER CODE BEGIN PV */
 
@@ -79,18 +76,13 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_USART2_UART_Init(void);
 
-// define the task bodies
-void taskUserBody(void *argument);
-void taskAsconBody(void *argument);
+void taskPiBody(void *argument);
+void taskFibonacciBody(void *argument);
 
-// define the commit functions
-void commitAscon();
+void updatePi(void *input, void *output);
+void updateFibonacci(void *input, void *output);
 
-// utility function
-void init_buffer(unsigned char* buffer, unsigned long long numbytes) {
-  unsigned long long i;
-  for (i = 0; i < numbytes; i++) buffer[i] = (unsigned char)i;
-}
+void taskMaliciousBody(void *argument);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -105,54 +97,46 @@ void init_buffer(unsigned char* buffer, unsigned long long numbytes) {
   * @retval int
   */
 
-#define AD_LENGTH 16
-#define M_LENGTH 64
-#define EXEC_STATE_ACTIVE 1
-#define EXEC_STATE_INACTIVE 0
-#define EXEC_STATE_DONE 2
-#define EXEC_MODE_ENCRYPT 1
-#define EXEC_MODE_DECRYPT 0
+typedef struct inputPi {
+  double pi;
+  int sign;
+  int denominator;
+} inputPi_t;
 
-//LIM: cannot use pointers inside this struct
-typedef struct inputAscon {
-  uint8_t exec_state;
-  uint8_t exec_mode;
-  unsigned char cypher[M_LENGTH + CRYPTO_ABYTES];
-  unsigned long long cypher_len;
-  unsigned char message[M_LENGTH];
-  unsigned long long message_len;
-  unsigned char ad[AD_LENGTH];
-  unsigned long long ad_len;
-  unsigned char nonce[CRYPTO_NPUBBYTES];
-  unsigned char key[CRYPTO_KEYBYTES];
-} inputAscon_t;
+typedef struct outputPi {
+  double pi;
+} outputPi_t;
 
-typedef struct outputAscon {
-  uint8_t exec_state;
-  uint8_t exec_mode;
-  unsigned char cypher[M_LENGTH + CRYPTO_ABYTES];
-  unsigned char message[M_LENGTH];
-  unsigned long long cypher_len;
-  unsigned long long message_len;
-} outputAscon_t;
+typedef struct inputFibonacci {
+  int n_previous;
+  int n_current;
+} inputFibonacci_t;
 
-void commitAscon(){
-  outputAscon_t * output = (outputAscon_t*) xGetOutput();
-  if (output->exec_state == EXEC_STATE_DONE){
-    if (output->exec_mode == EXEC_MODE_ENCRYPT){
-      printf("OUTPUT Cypher: ");
-      for (int i = 0; i < output->cypher_len; i++){
-        printf("%02x", output->cypher[i]);
-      }
-      printf("\n");
-    } else if (output->exec_mode == EXEC_MODE_DECRYPT){
-      printf("OUTPUT Message: ");
-      for (int i = 0; i < output->message_len; i++){
-        printf("%02x", output->message[i]);
-      }
-      printf("\n");
-    }
-  }
+typedef struct outputFibonacci {
+  int n_next;
+} outputFibonacci_t;
+
+
+void commitPi(){
+  outputPi_t * output = (outputPi_t*) xGetOutput();
+  printf("Pi: %f\n", output->pi * 4);
+}
+
+void commitFibonacci(){
+  outputFibonacci_t * output = (outputFibonacci_t*) xGetOutput();
+  printf("output FIBONACCI [COMMIT] : %d\n", output->n_next);
+}
+
+void updatePi(void *input, void *output){
+  inputPi_t * input_og = (inputPi_t*) input;
+  outputPi_t * output_og = (outputPi_t*) output;
+  input_og->sign *= -1;
+  input_og->denominator += 2;
+  input_og->pi = output_og->pi;
+}
+
+void updateFibonacci(void *input, void *output){
+
 }
 
 int main(void)
@@ -206,19 +190,53 @@ int main(void)
   /* Create the thread(s) */
   /* creation of TheTask */
 
-  taskAscon = osThreadNewRedundant(taskAsconBody, NULL, &taskAsconAttributes);  // in task.h xTaskCreateRedundant
-  taskUser = osThreadNew(taskUserBody, NULL, &taskUserAttributes); 
+  taskPi = osThreadNewRedundant(taskPiBody, NULL, &taskPiAttributes);
+  taskFibonacci=osThreadNewRedundant(taskFibonacciBody, NULL, &taskFibonacciAttributes);
+  taskMalicious=osThreadNew(taskMaliciousBody, NULL, &taskMaliciousAttributes);
 
-  // setting the input of the ascon task
-  inputAscon_t * inputAscon = pvPortMalloc(sizeof(inputAscon_t));
-  inputAscon->exec_state = EXEC_STATE_INACTIVE;
-  xSetInput(taskAscon, inputAscon, sizeof(inputAscon_t));
+  // setting parameters for the pi task
+  #ifdef __DEBUG__
+    printf("Setting commit function for taskPi\n");
+  #endif
+  xSetCommitFunction(taskPi, commitPi, NULL);
 
-  // setting the output of the ascon task
-  xSetOutput(taskAscon, sizeof(outputAscon_t));
+  #ifdef __DEBUG__
+    printf("Setting input for taskPi\n");
+  #endif
+  inputPi_t * input = pvPortMalloc(sizeof(inputPi_t));
+  input->pi = 0.0;
+  input->sign = 1;
+  input->denominator = 1;
+  xSetInput(taskPi, input, sizeof(inputPi_t));
 
-  // set the commit function of the ascon task
-  xSetCommitFunction(taskAscon, commitAscon, NULL);
+  #ifdef __DEBUG__
+    printf("Setting update rule taskPi\n");
+  #endif
+
+
+  #ifdef __DEBUG__
+    printf("Setting output structure\n");
+  #endif
+  xSetOutput(taskPi, sizeof(outputPi_t));
+
+  #ifdef __DEBUG__
+    printf("Setting input for FIBONACCI\n\n");
+  #endif
+  inputFibonacci_t * input_og = pvPortMalloc(sizeof(inputFibonacci_t));
+  input_og->n_previous = 0;
+  input_og->n_current = 1;
+  xSetInput(taskFibonacci, input_og, sizeof(inputFibonacci_t));
+
+  #ifdef __DEBUG__
+    printf("\nSetting output structure for FIBONACCI\n\n");
+  #endif
+  xSetOutput(taskFibonacci, sizeof(outputFibonacci_t));
+
+  #ifdef __DEBUG__
+    printf("Setting update rule for FIBONACCI\n\n");
+  #endif
+
+
 
   #ifdef __DEBUG__
   	printTaskList();
@@ -405,124 +423,64 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE END 4 */
 
-void taskUserBody(void *argument)
+void taskPiBody(void *argument)
 {
-  // declarizing and initializing
-  unsigned char cypher[M_LENGTH + CRYPTO_ABYTES];
-  unsigned char message[M_LENGTH];
-  unsigned char ad[AD_LENGTH];
-  unsigned char nonce[CRYPTO_NPUBBYTES];
-  unsigned char key[CRYPTO_KEYBYTES];
-  init_buffer(message, M_LENGTH);
-  init_buffer(ad, AD_LENGTH);
-  init_buffer(nonce, CRYPTO_NPUBBYTES);
-  init_buffer(key, CRYPTO_KEYBYTES);
-  printf("Message: ");
-  for (int i = 0; i < M_LENGTH; i++){
-    printf("%02x", message[i]);
+  for(;;){
+    inputPi_t * input = (inputPi_t*) xGetInput(NULL);
+    outputPi_t * output = (outputPi_t*) xGetOutput(NULL);
+
+    //printf("input: %f %d %d\n", input->pi, input->sign, input->denominator);
+
+    output->pi += (double) input->sign / input->denominator;
+  
+    osDelay(1000);
   }
-  printf("\n");
-
-  // await some time for the ascon task to be ready
-  printf("\nAwaiting for the encryption service to be ready\n");
-  osDelay(1000);
-  TaskHandle_t taskAscon = xTaskGetHandle("AsconTask");
-  uint8_t ready = 0;
-  // wait for the output of the ascon task to be set to inactive
-  while (!ready){
-    outputAscon_t * output = (outputAscon_t*) xGetTaskOutput(taskAscon);
-    if (output->exec_state == EXEC_STATE_INACTIVE){
-      ready = 1;
-    }
-    osDelay(50);
-  }
-
-  // preparing the input to the ascon task
-  inputAscon_t * input = pvPortMalloc(sizeof(inputAscon_t));
-  input->exec_state = EXEC_STATE_ACTIVE;
-  input->exec_mode = EXEC_MODE_ENCRYPT;
-  memcpy(input->message, message, M_LENGTH);
-  input->message_len = M_LENGTH;
-  memcpy(input->ad, ad, AD_LENGTH);
-  input->ad_len = AD_LENGTH;
-  memcpy(input->nonce, nonce, CRYPTO_NPUBBYTES);
-  memcpy(input->key, key, CRYPTO_KEYBYTES);
-  printf("Input set for encryption\n");
-  // setting the input of the ascon task
-  xSetTaskInput(taskAscon, input);
-
-  printf("Await for the decryption serivce to be ready\n");
-  // waiting for the ascon task to finish
-  osDelay(1000);
-  ready = 0;
-  outputAscon_t * output;
-  while (!ready){
-    output = (outputAscon_t*) xGetTaskOutput(taskAscon);
-    if (output->exec_state == EXEC_STATE_INACTIVE){
-      ready = 1;
-    }
-    osDelay(50);
-  }
-  input->exec_mode = EXEC_MODE_DECRYPT;
-  memcpy(input->cypher, output->cypher, output->cypher_len);
-  input->cypher_len = output->cypher_len;
-  xSetTaskInput(taskAscon, input);
-  printf("Input set for decryption\n");
-
-  printf("Await for the decryption serivce to finish\n");
-  // waiting for the ascon task to finish
-  osDelay(1000);
-  ready = 0;
-  while (!ready){
-    output = (outputAscon_t*) xGetTaskOutput(taskAscon);
-    if (output->exec_state == EXEC_STATE_INACTIVE){
-      ready = 1;
-    }
-    osDelay(50);
-  }
-  printf("Decryption service finished\n");
-
-  if(memcmp(message, output->message, M_LENGTH) == 0){
-    printf("\nEncryption and Decryption successful\n");
-  } else {
-    printf("\nEncryption and/or Decryption failed\n");
-  }
-
-  vTaskDelete(NULL);
 }
 
-void taskAsconBody(void *argument){
-  inputAscon_t * input = (inputAscon_t*) xGetInput();
-  outputAscon_t * output = (outputAscon_t*) xGetOutput();
+void taskFibonacciBody(void *argument){
+  #ifdef __DEBUG__
+    vTaskSuspend(xTaskGetHandle("piTask"));
+  #endif
+  xSetCommitFunction(taskFibonacci, commitFibonacci, NULL);
+  int result=0;
+  
+  outputFibonacci_t * output;
+  inputFibonacci_t * input;
+  output= (outputFibonacci_t*) xGetOutput(NULL);
+  output->n_next = 0;
   for(;;){
-    // an external task has to set the input
-    if(input->exec_state == EXEC_STATE_ACTIVE){
+    //printf("\n\n %s\n\n", pcTaskGetName( xTaskGetCurrentTaskHandle()));
+    input = (inputFibonacci_t*) xGetInput(NULL);
+    
+    #ifdef __DEBUG__
+      //printf("\ninput %s:\na= %d\nb= %d\n", pcTaskGetName( xTaskGetCurrentTaskHandle()), input->n_previous, input->n_current );
+      //printf("\noutput %s:\nout= %d\n", pcTaskGetName( xTaskGetCurrentTaskHandle()), output->n_next );
+    #endif
+    result = input->n_previous + input->n_current;
+    output->n_next = result;
+    input->n_previous = input->n_current;
+    input->n_current = output->n_next;
+    osDelay(5000);
+  }
+}
 
-      if(input->exec_mode == EXEC_MODE_ENCRYPT){
-        
-        crypto_aead_encrypt(input->cypher, &input->cypher_len, input->message, input->message_len, input->ad, input->ad_len, NULL, input->nonce, input->key);
-        input->exec_state = EXEC_STATE_DONE;
-        output->exec_state = input->exec_state;
-        output->exec_mode = input->exec_mode;
-        output->cypher_len = input->cypher_len;
-        memcpy(output->cypher, input->cypher, input->cypher_len);
-        
-      } else if(input->exec_mode == EXEC_MODE_DECRYPT){
-        
-        crypto_aead_decrypt(input->message, &input->message_len, NULL, input->cypher, input->cypher_len, input->ad, input->ad_len, input->nonce, input->key);
-        input->exec_state = EXEC_STATE_DONE;
-        output->exec_state = input->exec_state;
-        output->exec_mode = input->exec_mode;
-        output->message_len = input->message_len;
-        memcpy(output->message, input->message, input->message_len);
+void taskMaliciousBody(void *argument)
+{
+  TaskHandle_t target;
+  int a=0;
+  for(;;){
+	a++;
+    if(a==7){
+    	printf("\n\n !!!! time to destroy !!!!\n\n");
+    	target=xTaskGetHandle("fiboTask");
       
-      }
-
-    } else if (input->exec_state == EXEC_STATE_DONE) {
-      input->exec_state = EXEC_STATE_INACTIVE;
-      output->exec_state = input->exec_state;
+      sabotage(target);
+    } else if (a == 15) {
+      target=xTaskGetHandle("fiboTask");
+      inputFibonacci_t structura = {0, 1};
+      xSetTaskInput(target, &structura);
     }
-    osDelay(50);
+    osDelay(2000);
   }
 }
 
