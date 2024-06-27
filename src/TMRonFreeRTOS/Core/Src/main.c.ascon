@@ -18,6 +18,7 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #define __DEBUG__
+//#define __SABOTAGE__
 #include "main.h"
 #include "cmsis_os.h"
 
@@ -67,7 +68,7 @@ const osThreadAttr_t taskUserAttributes = {
 osThreadId_t taskAscon;
 const osThreadAttr_t taskAsconAttributes = {
   .name = "AsconTask",
-  .stack_size = 2000 * 4,
+  .stack_size = 4000 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
 /* USER CODE BEGIN PV */
@@ -504,6 +505,15 @@ void taskAsconBody(void *argument){
         input->exec_state = EXEC_STATE_DONE;
         output->exec_state = input->exec_state;
         output->exec_mode = input->exec_mode;
+        #ifdef __SABOTAGE__
+          // sabotage the cypher
+          if(strcmp(pcTaskGetName(NULL), "AsconTask") == 0){
+            for (int i = 0; i < input->cypher_len; i++){
+              input->cypher[i] = 0;
+            }
+          }
+        #endif
+
         output->cypher_len = input->cypher_len;
         memcpy(output->cypher, input->cypher, input->cypher_len);
         

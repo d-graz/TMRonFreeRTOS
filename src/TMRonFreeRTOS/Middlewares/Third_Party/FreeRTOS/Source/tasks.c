@@ -26,6 +26,7 @@
  *
  */
 //#define __DEBUG__
+#define __DEMO__
 /* Standard includes. */
 #include <stdlib.h>
 #include <string.h>
@@ -6252,7 +6253,7 @@ static void prvAddCurrentTaskToDelayedList( TickType_t xTicksToWait,
         }
         if (xReturn == pdFAIL){
             // calling function to start the recovery process
-            #ifdef __DEBUG__
+            #ifdef __DEMO__
                 printf("\nDEBUG: [vTaskDelay] - Output mismatch\n");
             #endif
             return xStartRecovery(pxTCB);
@@ -6265,7 +6266,7 @@ static void prvAddCurrentTaskToDelayedList( TickType_t xTicksToWait,
         xReturn = compareZone(pxTCB->redundantStruct.pxInputStruct, pxTCB->redundantStruct.pxTaskValidation->redundantStruct.pxInputStruct, pxTCB->redundantStruct.pxRedundantShared->uInputStructSize);
         if (xReturn == pdFAIL) {
             // calling function to start the recovery process
-            #ifdef __DEBUG__
+            #ifdef __DEMO__
                 printf("\nDEBUG: [vTaskDelay] - Input mismatch\n");
             #endif
             return xStartRecovery(pxTCB);
@@ -6298,7 +6299,7 @@ static void prvAddCurrentTaskToDelayedList( TickType_t xTicksToWait,
     }
 
     BaseType_t xStartRecovery(TCB_t * pxTCB){
-        #ifdef __DEBUG__
+        #ifdef __DEMO__
             printf("DEBUG: [vTaskDelay] - starting recovery process\n\n");
         #endif
         BaseType_t xReturn;
