@@ -342,8 +342,8 @@ void taskFibonacciBody(void *argument){
   inputFibonacci_t * input;
 
   for(;;){
-    input = (inputFibonacci_t*) xGetInput(NULL);
-    output= (outputFibonacci_t*) xGetOutput(NULL);
+    input = (inputFibonacci_t*) xGetInput();
+    output= (outputFibonacci_t*) xGetOutput();
     
     result = input->n_previous + input->n_current;
     output->n_next = result;
