@@ -35,6 +35,7 @@
 #endif
 
 #include "list.h"
+#include <stdio.h>
 
 /* *INDENT-OFF* */
 #ifdef __cplusplus
@@ -358,6 +359,8 @@ typedef enum
                             void * const pvParameters,
                             UBaseType_t uxPriority,
                             TaskHandle_t * const pxCreatedTask ) PRIVILEGED_FUNCTION;
+    
+
 #endif
 
 /**
@@ -693,6 +696,7 @@ typedef enum
  * \defgroup vTaskAllocateMPURegions vTaskAllocateMPURegions
  * \ingroup Tasks
  */
+//TODO: [LOW] [ask]
 void vTaskAllocateMPURegions( TaskHandle_t xTask,
                               const MemoryRegion_t * const pxRegions ) PRIVILEGED_FUNCTION;
 
@@ -1139,6 +1143,7 @@ void vTaskPrioritySet( TaskHandle_t xTask,
  * \defgroup vTaskSuspend vTaskSuspend
  * \ingroup TaskCtrl
  */
+
 void vTaskSuspend( TaskHandle_t xTaskToSuspend ) PRIVILEGED_FUNCTION;
 
 /**
@@ -1190,6 +1195,7 @@ void vTaskSuspend( TaskHandle_t xTaskToSuspend ) PRIVILEGED_FUNCTION;
  * \defgroup vTaskResume vTaskResume
  * \ingroup TaskCtrl
  */
+
 void vTaskResume( TaskHandle_t xTaskToResume ) PRIVILEGED_FUNCTION;
 
 /**
@@ -1586,6 +1592,7 @@ configSTACK_DEPTH_TYPE uxTaskGetStackHighWaterMark2( TaskHandle_t xTask ) PRIVIL
  * Passing xTask as NULL has the effect of setting the calling tasks hook
  * function.
  */
+//TODO: [LOW] [aks]
         void vTaskSetApplicationTaskTag( TaskHandle_t xTask,
                                          TaskHookFunction_t pxHookFunction ) PRIVILEGED_FUNCTION;
 
@@ -1621,6 +1628,8 @@ configSTACK_DEPTH_TYPE uxTaskGetStackHighWaterMark2( TaskHandle_t xTask ) PRIVIL
  * kernel does not use the pointers itself, so the application writer can use
  * the pointers for any purpose they wish.  The following two functions are
  * used to set and query a pointer respectively. */
+
+//TODO: [LOW] [ask]
     void vTaskSetThreadLocalStoragePointer( TaskHandle_t xTaskToSet,
                                             BaseType_t xIndex,
                                             void * pvValue ) PRIVILEGED_FUNCTION;
@@ -1696,6 +1705,7 @@ configSTACK_DEPTH_TYPE uxTaskGetStackHighWaterMark2( TaskHandle_t xTask ) PRIVIL
  * wants.  The return value is the value returned by the task hook function
  * registered by the user.
  */
+//TODO: [LOW] [assciato ad altro]
 BaseType_t xTaskCallApplicationTaskHook( TaskHandle_t xTask,
                                          void * pvParameter ) PRIVILEGED_FUNCTION;
 
@@ -2071,7 +2081,7 @@ BaseType_t xTaskGenericNotify( TaskHandle_t xTaskToNotify,
                                eNotifyAction eAction,
                                uint32_t * pulPreviousNotificationValue ) PRIVILEGED_FUNCTION;
 #define xTaskNotify( xTaskToNotify, ulValue, eAction ) \
-    xTaskGenericNotify( ( xTaskToNotify ), ( tskDEFAULT_INDEX_TO_NOTIFY ), ( ulValue ), ( eAction ), NULL )
+    xTaskGenericNotify( ( xTaskToNotify ), ( tskDEFAULT_INDEX_TO_NOTIFY ), ( ulValue ), ( eAction ), NULL )  
 #define xTaskNotifyIndexed( xTaskToNotify, uxIndexToNotify, ulValue, eAction ) \
     xTaskGenericNotify( ( xTaskToNotify ), ( uxIndexToNotify ), ( ulValue ), ( eAction ), NULL )
 
@@ -3068,6 +3078,7 @@ UBaseType_t uxTaskGetTaskNumber( TaskHandle_t xTask ) PRIVILEGED_FUNCTION;
  * Set the uxTaskNumber of the task referenced by the xTask parameter to
  * uxHandle.
  */
+//TODO: [VERY LOW] [vTaskSetTaskNumber] ricordarsi di specificare che questa funzione non funziona come da normale previsione
 void vTaskSetTaskNumber( TaskHandle_t xTask,
                          const UBaseType_t uxHandle ) PRIVILEGED_FUNCTION;
 
@@ -3116,3 +3127,90 @@ void vTaskInternalSetTimeOutState( TimeOut_t * const pxTimeOut ) PRIVILEGED_FUNC
 #endif
 /* *INDENT-ON* */
 #endif /* INC_TASK_H */
+
+#if (configUSE_REDUNDANT_TASK == 1)
+
+    /*
+     * Creates a new redundant task.
+     * A redundant task is a task that is created twice and runs in parallel.
+     * Every execution of the task is checked by a validation task.
+     * See doc at https://github.com/d-graz/TMRonFreeRTOS 
+    */
+    BaseType_t xTaskCreateRedundant( TaskFunction_t pxTaskCode,
+                                    const char * const pcName,
+                                    const configSTACK_DEPTH_TYPE usStackDepth,
+                                    void * const pvParameters,
+                                    UBaseType_t uxPriority,
+                                    TaskHandle_t * const pxCreatedTask ) PRIVILEGED_FUNCTION;
+
+    /*
+     * Links the commit function of a task to the task control block.
+     * This commit function is executed every time the task is validated
+     * (hence showing correct behavior).
+    */
+    BaseType_t xSetCommitFunction(TaskHandle_t task, void (*pxCommitFunction)(void*), void* pxCommitFunctionArgs);
+
+    /*
+     * Sets the output zone of a task in the task control block.
+     * This area will be checked during execution to verify the correctness of the task.
+    */
+    BaseType_t xSetOutput(TaskHandle_t task, UBaseType_t uxSize);
+
+    /*
+     * Returns the output zone of a the current task
+    */
+    void* xGetOutput();
+
+    /*
+     * Returns the output zone of a task (at previous commit)
+    */
+    void* xGetTaskOutput(TaskHandle_t task);
+
+    /*
+    * Sets the input zone of a task in the task control block.
+    * This area is reserved to all the global variables that the task needs in order to assure correct execution.
+    * In case of failure when controlling the task, a third task i spawned using this input zone.
+    */
+    BaseType_t xSetInput(TaskHandle_t task, void* pxStruct, UBaseType_t uxSize);
+
+    /*
+     * Returns the input zone of a task.
+    */
+    void* xGetInput();
+
+    /*
+    * Suspends a task from an ISR context. 
+    * The suspended task is the one that is currently running.
+    */
+    void vTaskSuspendContextSwitch();
+
+    /*
+     * Function called in traceTASK_SWITCHED_IN(), suspends task if redundant and 1 iteration ahead of validation
+    */
+    void xSuspendTaskAhead();
+
+    /*
+     * Returns 1 when task is 1 iteration ahead of validation
+     * Returns 0 when task is currently at the same iteration of validation
+     * Returns -1 when task is 1 iteration behind validation
+    */
+    BaseType_t xTaskAheadStatus();
+
+    /**
+     * Default implementation during vTask* calls when the target task is in recovery mode
+    */
+    BaseType_t defaultRecoveryHandler();
+
+    /**
+     * Sets the next input of a task from an external scope.
+    */
+    void xSetTaskInput(TaskHandle_t task, void* pxStruct);
+
+#endif
+
+//UTILS
+
+//TODO: [DEBUG] eliminate utils before release
+void printTaskList();
+
+void sabotage(TaskHandle_t target);

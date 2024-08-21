@@ -64,6 +64,8 @@
 /* Definitions specific to the port being used. */
 #include "portable.h"
 
+/* Redundant structure*/
+#include "redundancy.h"
 /* Must be defaulted before configUSE_NEWLIB_REENTRANT is used below. */
 #ifndef configUSE_NEWLIB_REENTRANT
     #define configUSE_NEWLIB_REENTRANT    0
@@ -412,7 +414,8 @@
 
 /* Called after a task has been selected to run.  pxCurrentTCB holds a pointer
  * to the task control block of the selected task. */
-    #define traceTASK_SWITCHED_IN()
+    extern void xSuspendTaskAhead();
+    #define traceTASK_SWITCHED_IN() xSuspendTaskAhead()
 #endif
 
 #ifndef traceINCREASE_TICK_COUNT
@@ -1141,6 +1144,56 @@
     #define configRUN_ADDITIONAL_TESTS    0
 #endif
 
+/* Set the configUSE_REDUNTANT_TASK to 1 to enable the redundant task feature
+ * and 0 to disable it. */
+#ifndef configUSE_REDUNDANT_TASK
+    #define configUSE_REDUNDANT_TASK    0
+#endif
+
+/* Checking necessary dependencies to use redundancy*/
+#if (configUSE_REDUNDANT_TASK == 1)
+    #if (configSUPPORT_DYNAMIC_ALLOCATION == 0)
+        #error "configSUPPORT_DYNAMIC_ALLOCATION must be set to 1 to use redundancy"
+    #endif
+    #if (INCLUDE_vTaskDelay==0 && INCLUDE_vTaskDelayUntil==0)
+        #error "INCLUDE_vTaskDelay or INCLUDE_vTaskDelayUntil must be set to 1 to use redundancy"
+    #endif
+    #if (INCLUDE_vTaskDelete==0)
+        #error "INCLUDE_vTaskDelete must be set to 1 to use redundancy"
+    #endif
+    #if (INCLUDE_vTaskSuspend==0)
+        #error "INCLUDE_vTaskSuspend must be set to 1 to use redundancy"
+    #endif
+#endif
+
+#ifndef traceTASK_RECOVERY_MODE
+
+    /**
+     * Hook called when calling a function that modifies the status of a task
+     * while the task is performing a recovery process.
+     * In this scope a context variable called currentCall is provided to the user
+     * in order to make decisions based upon the current scope of this call.
+     * The available scopes are:
+     * - inSuspend: The task is being suspended.
+     * - inResume: The task is being resumed.
+     * - inDelete: The task is being deleted.
+     * - inPrioritySet: The task priority is being set.
+    */
+    extern BaseType_t defaultRecoveryHandler();
+    #define traceTASK_RECOVERY_MODE() defaultRecoveryHandler()
+#endif
+
+#ifndef traceTASK_DELAY_FAILURE
+
+    /**
+     * Hook called when a task fails in the redundant logic scope during vTaskDelay or vTaskDelayUntil.
+     * Default behaviour will be stalling the scheduler.
+     * 
+    */
+    extern void defaultDelayFailureHandler();
+    #define traceTASK_DELAY_FAILURE() defaultDelayFailureHandler()
+#endif
+
 
 /* Sometimes the FreeRTOSConfig.h settings only allow a task to be created using
  * dynamically allocated RAM, in which case when any task is deleted it is known
@@ -1300,6 +1353,11 @@ typedef struct xSTATIC_TCB
     #endif
     #if ( configUSE_POSIX_ERRNO == 1 )
         int iDummy22;
+    #endif
+    
+    #if ( configUSE_REDUNDANT_TASK == 1)
+        BaseType_t dummy23;
+        xRedundantStruct_t dummy24;
     #endif
 } StaticTask_t;
 
