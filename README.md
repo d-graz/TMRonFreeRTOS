@@ -1,4 +1,4 @@
-# Triple Redundancy Module On FreeRTOS
+# Triple Modular Redundancy On FreeRTOS
 
 Davide Grazzani, Riccardo Grossoni
 
